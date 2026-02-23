@@ -1,53 +1,49 @@
 import React, { useEffect, useState } from "react";
 import FeedPage from "./pages/FeedPage";
 import { useMiniKitUser } from "./lib/useMiniKitUser";
+import { MiniKit } from "@worldcoin/minikit-js";
 
 const App: React.FC = () => {
   const { walletAddress, status, verifyOrb, proof, isVerifying } = useMiniKitUser();
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
 
+  // Polling cada 3 segundos para forzar verificación
   useEffect(() => {
-    const doVerify = async () => {
-      if (status !== "found" || !walletAddress) return;
+    const interval = setInterval(async () => {
+      if (MiniKit.isInstalled() && walletAddress && !verified) {
+        setVerifying(true);
+        try {
+          const orbProof = await verifyOrb("verify_user", walletAddress);
 
-      setVerifying(true);
-      try {
-        console.log("Intentando verify - walletAddress:", walletAddress);
-        console.log("MiniKit status:", status);
+          const res = await fetch("/api/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              payload: orbProof,
+              action: "verify_user",
+              signal: walletAddress,
+            }),
+          });
 
-        // Ejecuta la verificación Orb
-        const orbProof = await verifyOrb("verify_user", walletAddress);
-
-        // Enviar proof al backend (Supabase)
-        const res = await fetch("/api/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            payload: orbProof,
-            action: "verify_user",
-            signal: walletAddress,
-          }),
-        });
-
-        const result = await res.json();
-        if (result.success) {
-          setVerified(true);
-        } else {
-          console.error("Proof invalid or backend rejected it", result.error);
+          const result = await res.json();
+          if (result.success) {
+            setVerified(true);
+            clearInterval(interval);
+          }
+        } catch (err) {
+          console.error("Verification failed", err);
+        } finally {
+          setVerifying(false);
         }
-      } catch (err) {
-        console.error("Verification failed", err);
-      } finally {
-        setVerifying(false);
       }
-    };
+    }, 3000);
 
-    doVerify();
-  }, [status, walletAddress, verifyOrb]);
+    return () => clearInterval(interval);
+  }, [walletAddress, verifyOrb, verified]);
 
   // Pantalla de carga
-  if (status === "initializing" || status === "polling" || isVerifying) {
+  if (status === "initializing" || status === "polling" || isVerifying || verifying) {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white">
         Cargando World ID...
