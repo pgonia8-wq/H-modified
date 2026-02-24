@@ -7,45 +7,35 @@ const App: React.FC = () => {
   const { walletAddress, status, verifyOrb, proof, isVerifying } = useMiniKitUser();
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
-
-  // Contador persistente con localStorage (no se resetea al reload)
   const [retryCount, setRetryCount] = useState(() => {
     const saved = localStorage.getItem('retryCount');
     return saved ? parseInt(saved, 10) : 0;
   });
+  const [isRetrying, setIsRetrying] = useState(false);
 
-  // Guardar contador en localStorage cada vez que cambia
+  // Guardar contador en localStorage
   useEffect(() => {
     localStorage.setItem('retryCount', retryCount.toString());
   }, [retryCount]);
 
-  // Timeout para detectar atascado (20 segundos)
-  const [loadTimeout, setLoadTimeout] = useState(false);
-
-  // Logs de debug detallados
+  // Logs de debug
   useEffect(() => {
     console.log('🔍 MiniKit.isInstalled:', MiniKit.isInstalled?.() ?? 'no disponible');
-    console.log('🔍 Status actual:', status ?? 'sin-status');
+    console.log('🔍 Status:', status ?? 'sin-status');
     console.log('🔍 Wallet:', walletAddress ?? 'sin-wallet');
     console.log('🔍 isVerifying:', isVerifying);
     console.log('🔍 verified:', verified);
     console.log('🔍 Intentos totales:', retryCount);
   }, [status, walletAddress, isVerifying, verified, retryCount]);
 
-  // Timeout visual de 20 segundos
+  // AUTO-RETRY cada 6 segundos si está atascado
   useEffect(() => {
-    const timer = setTimeout(() => setLoadTimeout(true), 20000);
-    return () => clearTimeout(timer);
-  }, []);
-
-  // AUTO-RETRY cada 6 segundos mientras esté en initializing / polling
-  useEffect(() => {
-    if (status === "initializing" || status === "polling") {
+    if (status === "initializing" || status === "polling" || status === "error") {
       const interval = setInterval(() => {
         setRetryCount(c => c + 1);
-        MiniKit.install();
-        console.log('Auto-retry MiniKit.install() - intento:', retryCount + 1);
-      }, 6000); // cada 6 segundos (ajusta si quieres más rápido, ej: 4000)
+        window.location.reload(); // reload completo para forzar nuevo polling
+        console.log('Auto-reload por stuck - intento:', retryCount + 1);
+      }, 6000);
 
       return () => clearInterval(interval);
     }
@@ -53,15 +43,12 @@ const App: React.FC = () => {
 
   // Verificación cuando llegue a "found"
   useEffect(() => {
-    if (status !== "found" || !walletAddress || verified) {
-      console.log('⏳ Esperando "found"... actual:', status);
-      return;
-    }
+    if (status !== "found" || !walletAddress || verified) return;
 
     const doVerify = async () => {
       setVerifying(true);
       try {
-        console.log("🚀 Verificando Orb - wallet:", walletAddress);
+        console.log("Iniciando verificación");
         const orbProof = await verifyOrb("verify_user", walletAddress);
 
         const res = await fetch("/api/verify", {
@@ -79,12 +66,11 @@ const App: React.FC = () => {
         const result = await res.json();
         if (result.success) {
           setVerified(true);
-          console.log("✅ Éxito");
         } else {
-          console.error("❌ Backend rechazó:", result);
+          console.error("Backend rechazó:", result);
         }
       } catch (err) {
-        console.error("❌ Error verificación:", err);
+        console.error("Error verificación:", err);
       } finally {
         setVerifying(false);
       }
@@ -93,28 +79,8 @@ const App: React.FC = () => {
     doVerify();
   }, [status, walletAddress, verified, verifyOrb]);
 
-  // Pantalla de carga con timeout
+  // Pantalla de carga
   if (!status || status === "initializing" || status === "polling" || isVerifying || verifying) {
-    if (loadTimeout) {
-      return (
-        <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
-          <div className="text-xl font-bold">Cargando World ID... (tomando mucho tiempo)</div>
-          <div>Status: {status || 'esperando'}</div>
-          <div>Intentos auto/manual: {retryCount}</div>
-          <button
-            onClick={() => {
-              setRetryCount(c => c + 1);
-              setLoadTimeout(false);
-              MiniKit.install();
-            }}
-            className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95"
-          >
-            Reintentar manual
-          </button>
-        </div>
-      );
-    }
-
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white text-center p-6">
         Cargando World ID...<br />
@@ -124,7 +90,7 @@ const App: React.FC = () => {
     );
   }
 
-  // Error / no detectado
+  // Pantalla de error / no detectado
   if (!walletAddress || status === "not-installed" || status === "timeout" || status === "error") {
     return (
       <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
@@ -136,16 +102,23 @@ const App: React.FC = () => {
           Status: {status || 'desconocido'}<br />
           Intentos totales: {retryCount}
         </div>
-        <button
-          onClick={() => {
-            setRetryCount(c => c + 1);
-            setLoadTimeout(false);
-            MiniKit.install();
-          }}
-          className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95"
-        >
-          Reintentar detección
-        </button>
+        {isRetrying ? (
+          <div className="text-lg text-yellow-400">Reintentando...</div>
+        ) : (
+          <button
+            onClick={() => {
+              setRetryCount(c => c + 1);
+              setIsRetrying(true);
+              setTimeout(() => {
+                window.location.reload();
+              }, 1000); // 1 segundo de "Reintentando..." antes de reload
+            }}
+            disabled={isRetrying}
+            className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95 transition-transform disabled:opacity-50"
+          >
+            Reintentar detección
+          </button>
+        )}
       </div>
     );
   }
