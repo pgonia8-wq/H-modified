@@ -7,50 +7,39 @@ const App: React.FC = () => {
   const { walletAddress, status, verifyOrb, proof, isVerifying } = useMiniKitUser();
   const [verified, setVerified] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [retryCount, setRetryCount] = useState(() => {
-    const saved = localStorage.getItem('retryCount');
-    return saved ? parseInt(saved, 10) : 0;
-  });
-  const [isRetrying, setIsRetrying] = useState(false);
 
-  // Guardar contador en localStorage
+  // Debug de estado y MiniKit
   useEffect(() => {
-    localStorage.setItem('retryCount', retryCount.toString());
-  }, [retryCount]);
+    console.log("🚀 App mounted");
+    console.log("MiniKit.isInstalled():", MiniKit.isInstalled());
+    console.log("Initial status:", status);
+    console.log("Initial walletAddress:", walletAddress);
+  }, []);
 
-  // Logs de debug
+  // Verificación cada 3s solo si MiniKit está listo
   useEffect(() => {
-    console.log('🔍 MiniKit.isInstalled:', MiniKit.isInstalled?.() ?? 'no disponible');
-    console.log('🔍 Status:', status ?? 'sin-status');
-    console.log('🔍 Wallet:', walletAddress ?? 'sin-wallet');
-    console.log('🔍 isVerifying:', isVerifying);
-    console.log('🔍 verified:', verified);
-    console.log('🔍 Intentos totales:', retryCount);
-  }, [status, walletAddress, isVerifying, verified, retryCount]);
+    const interval = setInterval(async () => {
+      console.log("⏱ Interval check - status:", status, "walletAddress:", walletAddress);
 
-  // AUTO-RETRY cada 6 segundos si está atascado
-  useEffect(() => {
-    if (status === "initializing" || status === "polling" || status === "error") {
-      const interval = setInterval(() => {
-        setRetryCount(c => c + 1);
-        window.location.reload(); // reload completo para forzar nuevo polling
-        console.log('Auto-reload por stuck - intento:', retryCount + 1);
-      }, 6000);
+      if (!MiniKit.isInstalled()) {
+        console.warn("❌ MiniKit no está instalado. Solo funciona dentro de World App.");
+        return;
+      }
 
-      return () => clearInterval(interval);
-    }
-  }, [status, retryCount]);
+      if (!walletAddress) {
+        console.warn("⚠️ walletAddress no disponible aún.");
+        return;
+      }
 
-  // Verificación cuando llegue a "found"
-  useEffect(() => {
-    if (status !== "found" || !walletAddress || verified) return;
+      if (verified) return;
 
-    const doVerify = async () => {
       setVerifying(true);
       try {
-        console.log("Iniciando verificación");
+        console.log("🔹 Ejecutando verifyOrb...");
         const orbProof = await verifyOrb("verify_user", walletAddress);
+        console.log("✅ orbProof recibido:", orbProof);
 
+        // Llamada al backend
         const res = await fetch("/api/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -61,79 +50,50 @@ const App: React.FC = () => {
           }),
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
         const result = await res.json();
+        console.log("📡 RPC response:", result);
+
         if (result.success) {
+          console.log("🎉 Usuario verificado correctamente");
           setVerified(true);
         } else {
-          console.error("Backend rechazó:", result);
+          console.error("❌ Proof inválido o backend rechazó:", result.error);
         }
       } catch (err) {
-        console.error("Error verificación:", err);
+        console.error("⚠️ Error durante la verificación:", err);
       } finally {
         setVerifying(false);
       }
-    };
+    }, 3000);
 
-    doVerify();
-  }, [status, walletAddress, verified, verifyOrb]);
+    return () => clearInterval(interval);
+  }, [status, walletAddress, verifyOrb, verified]);
 
-  // Pantalla de carga
-  if (!status || status === "initializing" || status === "polling" || isVerifying || verifying) {
+  // Renderizado según estado
+  if (status === "initializing" || status === "polling" || isVerifying) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center bg-black text-white">
+        Cargando World ID...
+      </div>
+    );
+  }
+
+  if (!MiniKit.isInstalled() || !walletAddress || status === "not-installed" || status === "timeout") {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white text-center p-6">
-        Cargando World ID...<br />
-        Status: {status || 'esperando'}<br />
-        Intentos: {retryCount}
+        Esta aplicación solo funciona dentro de World App y con World ID verificado.
       </div>
     );
   }
 
-  // Pantalla de error / no detectado
-  if (!walletAddress || status === "not-installed" || status === "timeout" || status === "error") {
-    return (
-      <div className="w-screen h-screen flex flex-col items-center justify-center bg-black text-white text-center p-6 gap-6">
-        <div className="text-xl font-bold">
-          Esta aplicación solo funciona dentro de World App<br />
-          y con World ID verificado.
-        </div>
-        <div className="text-sm text-gray-400">
-          Status: {status || 'desconocido'}<br />
-          Intentos totales: {retryCount}
-        </div>
-        {isRetrying ? (
-          <div className="text-lg text-yellow-400">Reintentando...</div>
-        ) : (
-          <button
-            onClick={() => {
-              setRetryCount(c => c + 1);
-              setIsRetrying(true);
-              setTimeout(() => {
-                window.location.reload();
-              }, 1000); // 1 segundo de "Reintentando..." antes de reload
-            }}
-            disabled={isRetrying}
-            className="px-8 py-4 bg-white text-black rounded-xl font-bold text-lg active:scale-95 transition-transform disabled:opacity-50"
-          >
-            Reintentar detección
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  // Verificando
   if (!verified) {
     return (
       <div className="w-screen h-screen flex items-center justify-center bg-black text-white text-center p-6">
-        Verificando World ID...<br />
-        Wallet detectada: {walletAddress.slice(0, 6)}...
+        Verificando World ID...
       </div>
     );
   }
 
-  // Pantalla principal
   return (
     <div className="w-screen h-screen bg-black text-white flex flex-col">
       <header className="p-4 text-xl font-bold text-center">Human Feed</header>
