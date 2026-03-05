@@ -219,42 +219,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     );
   }
 
-  const handleUpgrade = async () => {
-    if (!currentUserId) return;
-
-    try {
-      // FASE 5: calculo dinámico del precio según la cantidad de usuarios
-      const { data: totalUsersData, error: countError } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true });
-
-      if (countError) throw countError;
-
-      const totalUsers = totalUsersData?.length || 0;
-      const basePrice = 10; // WLD base
-      const dynamicPrice = basePrice + totalUsers * 0.01; // ejemplo: cada usuario suma 0.01 WLD
-
-      const confirmMsg = `Precio upgrade: ${dynamicPrice.toFixed(2)} WLD. Confirmar?`;
-      if (!confirm(confirmMsg)) return;
-
-      // Aquí se podría llamar a tu función de pago WLD
-      alert(`Upgrade realizado con éxito por ${dynamicPrice.toFixed(2)} WLD`);
-
-      // Actualizar tier en perfil
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ tier: "premium" })
-        .eq("id", currentUserId);
-
-      if (updateError) throw updateError;
-
-      setProfile((prev) => ({ ...prev, tier: "premium" }));
-    } catch (err: any) {
-      console.error("Error en upgrade:", err);
-      alert("No se pudo completar el upgrade: " + err.message);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-gray-900/80 flex flex-col z-50">
       <button
@@ -422,7 +386,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       <div className="border-t border-white/10 p-4 flex gap-3 flex-shrink-0 bg-gray-900">
         {showUpgradeButton && (
           <button
-            onClick={handleUpgrade} // ← fase 5 agregada aquí
+            onClick={() => alert("Upgrade → conectar wallet WLD")}
             className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-medium hover:opacity-90 transition"
           >
             Upgrade
