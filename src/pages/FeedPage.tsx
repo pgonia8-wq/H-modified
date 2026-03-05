@@ -1,52 +1,58 @@
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../supabaseClient';
+import React from 'react';
 import PostCard from '../components/PostCard';
 
 interface Post {
   id: string;
-  title?: string;
   content?: string;
-  created_at: string;
-  [key: string]: any; // Para campos extra opcionales
+  timestamp: string;
+  profile?: {
+    username?: string;
+  };
+  [key: string]: any;
 }
 
-const FeedPage: React.FC = () => {
-  const [posts, setPosts] = useState<Post[]>([]);
+interface FeedPageProps {
+  posts: Post[];
+  loading?: boolean;
+  error?: string | null;
+}
 
-  const fetchPosts = async () => {
-    const { data, error } = await supabase
-      .from<Post>('posts')
-      .select('*')
-      .order('created_at', { ascending: false });
+const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error }) => {
+  if (loading) {
+    return (
+      <div className="w-full max-w-2xl space-y-6 px-4">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-5 animate-pulse space-y-4 border border-gray-800/50">
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-gray-800" />
+              <div className="space-y-2 flex-1">
+                <div className="h-4 bg-gray-800 rounded w-3/4" />
+                <div className="h-3 bg-gray-800 rounded w-1/2" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="h-4 bg-gray-800 rounded w-full" />
+              <div className="h-4 bg-gray-800 rounded w-5/6" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
-    if (error) {
-      console.error("Error fetching posts:", error);
-    } else if (data) {
-      setPosts(data);
-    }
-  };
+  if (error) {
+    return <p className="text-red-500 text-center py-6">{error}</p>;
+  }
 
-  useEffect(() => {
-    fetchPosts();
-
-    // Suscripción a nuevos posts en tiempo real
-    const subscription = supabase
-      .from('posts')
-      .on('INSERT', () => fetchPosts())
-      .subscribe();
-
-    return () => {
-      subscription.unsubscribe(); // cleanup correcto
-    };
-  }, []);
+  if (posts.length === 0) {
+    return <p className="text-gray-500 text-center py-10">No hay posts todavía.</p>;
+  }
 
   return (
-    <div className="flex flex-col items-center p-4 space-y-4 w-full max-w-xl mx-auto">
-      {posts.length === 0 ? (
-        <p className="text-gray-400 text-center">No hay posts todavía.</p>
-      ) : (
-        posts.map((post) => <PostCard key={post.id} post={post} />)
-      )}
+    <div className="w-full max-w-2xl flex flex-col gap-6 px-4">
+      {posts.map((post) => (
+        <PostCard key={post.id} post={post} />
+      ))}
     </div>
   );
 };
