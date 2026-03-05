@@ -56,6 +56,36 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { theme, setTheme } = useContext(ThemeContext);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const handleUpgrade = async (tier: "premium" | "premium+") => {
+  if (!currentUserId) return;
+
+  try {
+    const res = await fetch("/api/upgrade", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: currentUserId,
+        tier,
+        transactionId: "tx-test-001", // reemplaza con el real cuando tengas la transacción WLD
+      }),
+    });
+
+    const data = await res.json();
+
+    console.log("Upgrade response:", data);
+
+    if (data.success) {
+      showToast(`Upgrade exitoso: ${tier}`, "success");
+      // Opcional: actualizar perfil en UI
+      setProfile(prev => ({ ...prev, tier }));
+    } else {
+      showToast(`Error en upgrade: ${data.error}`, "error");
+    }
+  } catch (err: any) {
+    console.error("Error conectando con API upgrade:", err);
+    showToast("No se pudo conectar con la API de upgrade", "error");
+  }
+};
 
   useEffect(() => {
     const loadOrCreateProfile = async () => {
@@ -427,14 +457,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       {/* Botones inferiores */}
       <div className={`border-t ${borderColor} p-4 flex gap-3 flex-shrink-0`}>
         {showUpgradeButton && (
-          <button
-            onClick={() => alert("Upgrade → conectar wallet WLD")}
-            className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-medium hover:opacity-90 transition"
-          >
-            Upgrade
-          </button>
-        )}
-
+  <button
+    onClick={() => handleUpgrade("premium")} // O "premium+" según quieras
+    className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-medium hover:opacity-90 transition"
+  >
+    Upgrade
+  </button>
+)}
         <button
           onClick={handleSave}
           disabled={saving}
