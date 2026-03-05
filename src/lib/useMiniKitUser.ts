@@ -1,77 +1,70 @@
-import { useEffect, useState, useCallback } from "react";
-import { MiniKit } from "@worldcoin/minikit-js";
+// ~/projects/h/src/lib/useMiniKitUser.ts
+import { useState, useEffect } from "react";
+import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 
 export function useMiniKitUser() {
-  const [walletAddress, setWalletAddress] = useState<string | null>(null);
-  const [status, setStatus] = useState<
-    "initializing" | "not-installed" | "no-wallet" | "found" | "error"
-  >("initializing");
+  const [wallet, setWallet] = useState<string | null>(null);
+  const [verified, setVerified] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const [isVerifying, setIsVerifying] = useState(false);
-
-  // 🔎 Detectar wallet dentro de World App
   useEffect(() => {
-    const init = async () => {
-      if (!MiniKit.isInstalled()) {
-        setStatus("not-installed");
-        return;
+    try {
+      MiniKit.install();
+      const installed = MiniKit.isInstalled();
+      console.log("MiniKit installed:", installed);
+
+      if (installed) {
+        const w = MiniKit.walletAddress;
+        if (w) setWallet(w);
       }
-
-      try {
-        const wallet = await MiniKit.commandsAsync.getWallet();
-
-        console.log("Wallet RAW:", wallet);
-
-        if (wallet?.address) {
-          setWalletAddress(wallet.address);
-          setStatus("found");
-        } else {
-          setStatus("no-wallet");
-        }
-      } catch (err) {
-        console.error("Error obteniendo wallet:", err);
-        setStatus("error");
-      }
-    };
-
-    setTimeout(init, 1000);
+    } catch (err) {
+      console.error("MiniKit install error:", err);
+      setError("Error al instalar MiniKit");
+    }
   }, []);
 
-  // 🔐 Verificación Orb REAL (devuelve proof completo)
-  const verifyOrb = useCallback(
-    async (action: string, signal: string) => {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("MiniKit no está instalado");
+  const verifyUser = async () => {
+    if (!wallet || verifying) return;
+
+    setVerifying(true);
+    setError(null);
+
+    try {
+      const verifyRes = await MiniKit.commandsAsync.verify({
+        action: "verify-user",           // Acción exacta en tu portal 4.0
+        signal: wallet,                   // Wallet actual
+        verification_level: VerificationLevel.Device
+      });
+
+      console.log("Verify response:", verifyRes);
+
+      const proof = verifyRes?.finalPayload;
+
+      if (!proof) throw new Error("No se recibió proof");
+
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payload: proof }) // ENVÍO CORRECTO 4.0
+      });
+
+      const backend = await res.json();
+      console.log("Backend response:", backend);
+
+      if (backend.success) {
+        setVerified(true);
+      } else {
+        setError("Backend rechazó la prueba");
       }
 
-      setIsVerifying(true);
-
-      try {
-        const response = await MiniKit.commandsAsync.verify({
-          action,
-          signal,
-          verification_level: "Orb",
-        });
-
-        console.log("Respuesta completa de verify:", response);
-
-        if (!response || response.status !== "success") {
-          throw new Error("Verificación cancelada o fallida");
-        }
-
-        // 🔥 Devuelve TODO el proof para enviarlo al backend
-        return response;
-      } finally {
-        setIsVerifying(false);
-      }
-    },
-    []
-  );
-
-  return {
-    walletAddress,
-    status,
-    verifyOrb,
-    isVerifying,
-  };
+    } catch (err: any) {
+      console.error("Verify error:", err);
+      setError(err.message || "Error durante verificación");
+    } finally {
+      setVerifying(false);
     }
+  };
+
+  return { wallet, verified, verifying, error, verifyUser };
+        }
