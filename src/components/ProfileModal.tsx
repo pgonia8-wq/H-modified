@@ -45,11 +45,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   onClose,
   showUpgradeButton = true,
 }) => {
-  const [profile, setProfile] = useState(emptyProfile);
+  const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
   const { theme, setTheme } = useContext(ThemeContext);
@@ -117,6 +118,11 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     loadOrCreateProfile();
   }, [currentUserId]);
 
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleSave = async () => {
     if (!currentUserId) return;
     setSaving(true);
@@ -136,10 +142,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
       if (error) throw error;
 
-      alert("Perfil guardado correctamente ✅");
+      showToast("Perfil guardado correctamente ✅");
       onClose();
     } catch (err: any) {
-      alert("Error al guardar: " + err.message);
+      showToast("Error al guardar: " + err.message, "error");
     } finally {
       setSaving(false);
     }
@@ -150,16 +156,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     if (!file || !currentUserId) return;
 
     if (!file.type.startsWith("image/")) {
-      alert("Solo se permiten imágenes (JPG, PNG, etc.)");
+      showToast("Solo se permiten imágenes (JPG, PNG, etc.)", "error");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      alert("La imagen es muy grande (máximo 5 MB)");
+      showToast("La imagen es muy grande (máximo 5 MB)", "error");
       return;
     }
 
     setUploadingAvatar(true);
     const timestamp = Date.now();
+
+    
     const fileName = `${currentUserId}/avatar-${timestamp}`;
 
     try {
@@ -173,8 +181,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .from("avatars")
         .getPublicUrl(fileName);
 
-      if (!urlData?.publicUrl) throw new Error("No se pudo obtener la URL pública del avatar");
-
+    
       const newAvatarUrl = `${urlData.publicUrl}?t=${timestamp}`;
 
       const { error: updateError } = await supabase
@@ -185,9 +192,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       if (updateError) throw updateError;
 
       setProfile((prev) => ({ ...prev, avatar_url: newAvatarUrl }));
+      showToast("Avatar actualizado correctamente");
     } catch (err: any) {
       console.error("Error en avatar:", err);
-      alert("No se pudo subir o asociar la imagen: " + err.message);
+      showToast("No se pudo subir o asociar la imagen: " + err.message, "error");
     } finally {
       setUploadingAvatar(false);
     }
@@ -206,37 +214,77 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const isPremium = profile.tier === "premium" || profile.tier === "premium+";
 
+  // Clases condicionales por tema
+  const modalBg = theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black";
+  const headerGradient = theme === "dark" ? "from-indigo-600 to-purple-600" : "from-indigo-500 to-purple-500";
+  const inputBg = theme === "dark" ? "bg-gray-800" : "bg-gray-200 text-black";
+  const borderColor = theme === "dark" ? "border-white/20" : "border-gray-300";
+  const textGray = theme === "dark" ? "text-gray-400" : "text-gray-600";
+  const tabActive = theme === "dark" ? "text-purple-400 border-purple-400" : "text-purple-600 border-purple-600";
+  const tabInactive = theme === "dark" ? "text-gray-400 hover:text-gray-300" : "text-gray-600 hover:text-gray-800";
+  const buttonGreen = theme === "dark" ? "bg-green-600 hover:bg-green-700" : "bg-green-500 hover:bg-green-600";
+  const buttonRed = theme === "dark" ? "bg-red-600/80 hover:bg-red-700" : "bg-red-500 hover:bg-red-600";
+
   if (loading) {
-    return <div className="p-6 text-center text-white">Cargando perfil...</div>;
+    return (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="text-white text-xl animate-pulse">Cargando perfil...</div>
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="p-6 text-center text-red-500">
-        {error}
-        <button onClick={onClose}>Cerrar</button>
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="bg-gray-800 p-8 rounded-2xl text-center max-w-sm">
+          <p className="text-red-400 mb-4">{error}</p>
+          <button onClick={onClose} className="px-6 py-3 bg-purple-600 rounded-xl text-white">
+            Cerrar
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-gray-900/80 flex flex-col z-50">
-      <button
-        onClick={toggleTheme}
-        aria-label="Alternar tema claro/oscuro"
-        className="absolute top-4 right-4 text-white text-2xl hover:text-yellow-300 transition-colors z-10"
-      >
-        {theme === "dark" ? "☀️" : "🌙"}
-      </button>
+    <div className={`fixed inset-0 bg-black/80 flex flex-col z-50 ${modalBg}`}>
+      {/* Toast */}
+      {toast && (
+        <div
+          className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 animate-fade-in-out ${
+            toast.type === "success" ? "bg-green-600" : "bg-red-600"
+          } text-white`}
+        >
+          {toast.message}
+        </div>
+      )}
 
-      <div className="absolute -bottom-12 left-6 w-24 h-24">
+      {/* Header */}
+      <div className={`relative bg-gradient-to-r ${headerGradient} h-32 flex-shrink-0`}>
+        <button
+          onClick={onClose}
+          aria-label="Cerrar perfil"
+          className="absolute top-4 right-16 text-white text-3xl font-light hover:text-gray-200 z-10"
+        >
+          ×
+        </button>
+
+        <button
+          onClick={toggleTheme}
+          aria-label="Alternar tema"
+          className="absolute top-4 right-4 text-white text-2xl hover:text-yellow-300 transition-colors z-10"
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+      </div>
+
+      {/* Avatar */}
+      <div className="absolute -bottom-12 left-6 w-24 h-24 z-10">
         <img
           src={profile.avatar_url || "/default-avatar.png"}
           alt="Tu avatar"
           className="w-24 h-24 rounded-full border-4 border-gray-900 object-cover shadow-lg"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "/default-avatar.png";
-          }}
+          onError={(e) => ((e.target as HTMLImageElement).src = "/default-avatar.png")}
         />
 
         <button
@@ -260,16 +308,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         />
       </div>
 
+      {/* Contenido principal */}
       <div className="flex-1 overflow-y-auto">
         <div className="pt-14 px-6 pb-6">
           <input
             value={profile.name}
             onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className="bg-transparent text-2xl font-bold w-full focus:outline-none text-white"
+            className={`bg-transparent text-2xl font-bold w-full focus:outline-none ${textGray}`}
             placeholder="Tu nombre"
             maxLength={50}
           />
-          <p className="text-gray-400 mt-1">@{profile.username || "sin_username"}</p>
+          <p className={textGray + " mt-1"}>@{profile.username || "sin_username"}</p>
 
           {isPremium && (
             <div className="inline-block mt-2 px-4 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-xs font-bold rounded-full">
@@ -286,30 +335,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             }}
             placeholder="Escribe tu bio..."
             maxLength={160}
-            className="mt-4 w-full bg-gray-800 text-white p-4 rounded-2xl resize-none h-28 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className={`mt-4 w-full ${inputBg} text-white p-4 rounded-2xl resize-none h-28 focus:outline-none focus:ring-2 focus:ring-purple-500`}
           />
-          <div className="text-right text-xs text-gray-400 mt-1">{bioLength}/160</div>
+          <div className={`text-right text-xs ${textGray} mt-1`}>{bioLength}/160</div>
 
           <div className="flex gap-6 mt-6 text-sm">
             <div>
               <span className="font-bold text-white">{profile.following_count}</span>{" "}
-              <span className="text-gray-400">Siguiendo</span>
+              <span className={textGray}>Siguiendo</span>
             </div>
             <div>
               <span className="font-bold text-white">{profile.followers_count}</span>{" "}
-              <span className="text-gray-400">Seguidores</span>
+              <span className={textGray}>Seguidores</span>
             </div>
-            <div className="text-gray-400">
+            <div className={textGray}>
               Se unió en <span className="text-white">{joinedDate}</span>
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap gap-4 text-sm text-gray-300">
+          <div className={`mt-5 flex flex-wrap gap-4 text-sm ${textGray}`}>
             {(profile.city || profile.country) && (
-              <div>
-                📍 {profile.city}
-                {profile.country ? `, ${profile.country}` : ""}
-              </div>
+              <div>📍 {profile.city}{profile.country ? `, ${profile.country}` : ""}</div>
             )}
             {profile.birthdate && (
               <div>🎂 {new Date(profile.birthdate).toLocaleDateString("es-MX")}</div>
@@ -317,15 +363,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
 
-        <div className="flex border-b border-white/20 sticky top-0 bg-gray-900 z-10">
+        {/* Tabs */}
+        <div className={`flex border-b ${borderColor} sticky top-0 ${modalBg} z-10`}>
           {(["posts", "responses", "likes"] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-4 text-sm font-medium transition-colors ${
-                activeTab === tab
-                  ? "text-purple-400 border-b-4 border-purple-400"
-                  : "text-gray-400 hover:text-gray-300"
+                activeTab === tab ? tabActive : tabInactive
               }`}
             >
               {tab === "posts" ? "Posts" : tab === "responses" ? "Respuestas" : "Likes"}
@@ -335,55 +380,55 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
         <div className="p-6">
           {activeTab === "posts" && (
-            <p className="text-gray-400 text-center py-10">Tus posts aparecerán aquí</p>
+            <p className={`text-center py-10 ${textGray}`}>Tus posts aparecerán aquí</p>
           )}
           {activeTab === "responses" && (
-            <p className="text-gray-400 text-center py-10">Tus respuestas aparecerán aquí</p>
+            <p className={`text-center py-10 ${textGray}`}>Tus respuestas aparecerán aquí</p>
           )}
           {activeTab === "likes" && (
-            <p className="text-gray-400 text-center py-10">
-              Posts que te gustaron aparecerán aquí
-            </p>
+            <p className={`text-center py-10 ${textGray}`}>Posts que te gustaron aparecerán aquí</p>
           )}
         </div>
 
-        <div className="p-6 border-t border-white/10 bg-gray-900/70 space-y-5">
+        {/* Edición extra */}
+        <div className={`p-6 border-t ${borderColor} space-y-5`}>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Nacimiento</label>
+              <label className={`block text-xs ${textGray} mb-1`}>Nacimiento</label>
               <input
                 type="date"
                 value={profile.birthdate}
                 onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-                className="w-full bg-gray-800 p-3 rounded-xl focus:outline-none"
+                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
               />
             </div>
             <div>
-              <label className="block text-xs text-gray-400 mb-1">Ciudad</label>
+              <label className={`block text-xs ${textGray} mb-1`}>Ciudad</label>
               <input
                 type="text"
                 placeholder="Ciudad"
                 value={profile.city}
                 onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                className="w-full bg-gray-800 p-3 rounded-xl focus:outline-none"
+                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-gray-400 mb-1">País</label>
+            <label className={`block text-xs ${textGray} mb-1`}>País</label>
             <input
               type="text"
               placeholder="País"
               value={profile.country}
               onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-              className="w-full bg-gray-800 p-3 rounded-xl focus:outline-none"
+              className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
             />
           </div>
         </div>
       </div>
 
-      <div className="border-t border-white/10 p-4 flex gap-3 flex-shrink-0 bg-gray-900">
+      {/* Botones inferiores */}
+      <div className={`border-t ${borderColor} p-4 flex gap-3 flex-shrink-0`}>
         {showUpgradeButton && (
           <button
             onClick={() => alert("Upgrade → conectar wallet WLD")}
@@ -396,14 +441,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         <button
           onClick={handleSave}
           disabled={saving}
-          className="flex-1 py-3.5 bg-green-600 rounded-2xl font-medium disabled:opacity-60 hover:bg-green-700 transition"
+          className={`flex-1 py-3.5 ${buttonGreen} rounded-2xl font-medium disabled:opacity-60 transition`}
         >
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>
 
         <button
           onClick={() => alert("Reportado (función pendiente)")}
-          className="px-6 py-3.5 bg-red-600/80 rounded-2xl text-sm font-medium hover:bg-red-700 transition"
+          className={`px-6 py-3.5 ${buttonRed} rounded-2xl text-sm font-medium transition`}
         >
           Reportar
         </button>
