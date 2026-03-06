@@ -5,6 +5,7 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
+import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← agrega esta importación
 
 interface Post {
   id: string;
@@ -40,6 +41,7 @@ const HomePage: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme, accentColor } = useContext(ThemeContext);
+  const { wallet } = useMiniKitUser();  // ← usamos el hook para obtener wallet
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -85,11 +87,15 @@ const HomePage: React.FC = () => {
           .single();
 
         setUserTier(profile?.tier || 'free');
+      } else if (wallet) {
+        // Fallback: usa wallet como identifier si no hay Supabase Auth
+        setCurrentUserId(wallet);
+        console.log("[USER] Usando wallet como currentUserId:", wallet);
       }
       fetchPosts(true);
     };
     fetchUserData();
-  }, [fetchPosts]);
+  }, [fetchPosts, wallet]);
 
   useEffect(() => {
     const handleScroll = () => {
