@@ -8,6 +8,7 @@ function App() {
   const [verified, setVerified] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
 
   const handleVerify = async () => {
     try {
@@ -35,6 +36,7 @@ function App() {
         setError("No se encontró proof válido");
         return;
       }
+      
 
       // Obtener el usuario actual de Supabase
       const { data: { user } } = await supabase.auth.getUser();
@@ -43,6 +45,35 @@ function App() {
         setError("No estás logueado. Inicia sesión primero.");
         return;
       }
+      // Sacamos el userId del nullifier_hash
+const userId = proofData.nullifier_hash;
+
+// Creamos el body para el backend
+const body = {
+  proof: proofData.proof,
+  merkle_root: proofData.merkle_root,
+  nullifier_hash: proofData.nullifier_hash,
+  verification_level: proofData.verification_level,
+  action: "verify-user",
+  max_age: 7200,
+  userId: userId, // <- enviamos al backend
+};
+
+// Llamamos al backend
+const res = await fetch("/api/verify", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(body),
+});
+const result = await res.json();
+
+if (result.success) {
+  setVerified(true);
+  setUserId(userId); // <- guardamos el userId en estado
+  setMessage("✅ Verificación exitosa");
+} else {
+  setError("Backend rechazó la prueba: " + (result.error || ""));
+}
 
       const body = {
         proof: proofData.proof,
