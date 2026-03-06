@@ -111,46 +111,33 @@ const HomePage: React.FC = () => {
       return;
     }
 
-    console.log("[POST] Intentando publicar:", newPostContent);
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    console.log("[POST] Auth result:", {
-      userId: user?.id || "NULL",
-      authError: authError ? authError.message : "No error"
-    });
-
-    if (authError || !user) {
-      alert("No estás logueado. Intenta cerrar y abrir la app.");
+    if (!currentUserId) {
+      alert("No se encontró tu ID de usuario. Verifica con World ID primero o recarga la app.");
       return;
     }
 
-    console.log("[POST] Usuario OK, insertando con user_id:", user.id);
+    console.log("[POST] Publicando con currentUserId:", currentUserId);
 
     try {
       const { data: inserted, error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: user.id,
+          user_id: currentUserId,
           content: newPostContent.trim(),
           timestamp: new Date().toISOString(),
-          // Si tu tabla tiene estas columnas obligatorias, descomenta y ajusta
-          // deleted_flag: false,
-          // visibility_score: 1,
-          // username: "tu_username" // si lo tienes en el perfil
+          deleted_flag: false,
+          visibility_score: 1
         })
-        .select();  // Devuelve lo insertado para debug
+        .select();
 
-      console.log("[POST] Resultado insert:", {
-        inserted: inserted ? inserted[0] : null,
-        insertError: insertError ? insertError.message : "No error"
-      });
+      console.log("[POST] Resultado insert:", { inserted, insertError });
 
       if (insertError) throw insertError;
 
       alert("¡Post publicado correctamente!");
       setShowNewPostModal(false);
       setNewPostContent('');
-      fetchPosts(true);  // Refresca feed
+      fetchPosts(true);
 
     } catch (err: any) {
       console.error("[POST] Error al publicar:", err);
