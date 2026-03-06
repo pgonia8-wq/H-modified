@@ -1,13 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
-import { supabase } from "./supabaseClient";  // Asegúrate de que esta importación esté correcta
 
 function App() {
   const [verified, setVerified] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Carga userId de localStorage si ya verificado
+    const storedUserId = localStorage.getItem('userId');
+    if (storedUserId) {
+      setUserId(storedUserId);
+      setVerified(true);
+    }
+  }, []);
 
   const handleVerify = async () => {
     try {
@@ -36,6 +45,8 @@ function App() {
         return;
       }
 
+      const id = proofData.nullifier_hash;  // identificador único de World ID
+
       const body = {
         proof: proofData.proof,
         merkle_root: proofData.merkle_root,
@@ -43,6 +54,7 @@ function App() {
         verification_level: proofData.verification_level,
         action: "verify-user",
         max_age: 7200,
+        userId: id,
       };
 
       const res = await fetch("/api/verify", {
@@ -50,10 +62,13 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
+
       const result = await res.json();
 
       if (result.success) {
         setVerified(true);
+        setUserId(id);
+        localStorage.setItem('userId', id);  // Persiste para no pedir verify de nuevo
         setMessage("✅ Verificación exitosa");
       } else {
         setError("Backend rechazó la prueba: " + (result.error || ""));
@@ -86,7 +101,7 @@ function App() {
         </div>
       ) : (
         <ErrorBoundary>
-          <HomePage />
+          <HomePage userId={userId} />
         </ErrorBoundary>
       )}
     </div>
