@@ -2,10 +2,10 @@ import { useState } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { supabase } from "./supabaseClient";  // Asegúrate de que esta importación esté correcta
 
 function App() {
   const [verified, setVerified] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,8 +36,6 @@ function App() {
         return;
       }
 
-      const id = proofData.nullifier_hash;
-
       const body = {
         proof: proofData.proof,
         merkle_root: proofData.merkle_root,
@@ -45,7 +43,6 @@ function App() {
         verification_level: proofData.verification_level,
         action: "verify-user",
         max_age: 7200,
-        userId: id
       };
 
       const res = await fetch("/api/verify", {
@@ -53,24 +50,15 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      let result;
-      try {
-        result = await res.json();
-      } catch (jsonErr) {
-        const text = await res.text();
-        throw new Error(`Respuesta inválida del backend (${res.status}): ${text}`);
-      }
+      const result = await res.json();
 
       if (result.success) {
         setVerified(true);
-        setUserId(id);
         setMessage("✅ Verificación exitosa");
       } else {
-        setError("Backend rechazó la prueba: " + (result.error || "Respuesta desconocida"));
+        setError("Backend rechazó la prueba: " + (result.error || ""));
       }
     } catch (err: any) {
-      console.error("Error completo en verify:", err);
       setError("Error durante verificación: " + err.message);
     }
   };
@@ -98,7 +86,7 @@ function App() {
         </div>
       ) : (
         <ErrorBoundary>
-          <HomePage userId={userId} />
+          <HomePage />
         </ErrorBoundary>
       )}
     </div>
