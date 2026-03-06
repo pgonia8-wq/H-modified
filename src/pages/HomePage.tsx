@@ -5,7 +5,7 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
-import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← agrega esta importación
+import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← este hook ya lo tienes
 
 interface Post {
   id: string;
@@ -41,7 +41,7 @@ const HomePage: React.FC = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme, accentColor } = useContext(ThemeContext);
-  const { wallet } = useMiniKitUser();  // ← usamos el hook para obtener wallet
+  const { wallet, verified } = useMiniKitUser();  // ← usamos wallet directamente
 
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -77,21 +77,27 @@ const HomePage: React.FC = () => {
 
   useEffect(() => {
     const fetchUserData = async () => {
+      // Intenta Supabase Auth (por si acaso)
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
+        console.log("[USER] User ID desde Supabase Auth:", user.id);
+      } else if (wallet) {
+        setCurrentUserId(wallet);  // ← wallet address como ID principal
+        console.log("[USER] User ID desde MiniKit wallet:", wallet);
+      }
+
+      // Carga tier si tienes columna en users
+      if (currentUserId) {
         const { data: profile } = await supabase
-          .from('profiles')
+          .from('users')  // cambia a 'profiles' si usas esa tabla
           .select('tier')
-          .eq('id', user.id)
+          .eq('user_id', currentUserId)
           .single();
 
         setUserTier(profile?.tier || 'free');
-      } else if (wallet) {
-        // Fallback: usa wallet como identifier si no hay Supabase Auth
-        setCurrentUserId(wallet);
-        console.log("[USER] Usando wallet como currentUserId:", wallet);
       }
+
       fetchPosts(true);
     };
     fetchUserData();
