@@ -5,7 +5,7 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
-import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← importamos el hook
+import { useMiniKitUser } from "../lib/useMiniKitUser";  // ← IMPORTANTE
 
 interface Post {
   id: string;
@@ -58,7 +58,7 @@ const HomePage: React.FC = () => {
         .from("posts")
         .select("*")
         .order("timestamp", { ascending: false })
-        .range(from, to);
+        .range(from, to);  // ← feed global (sin filtro por user_id)
 
       if (error) throw error;
 
@@ -76,31 +76,15 @@ const HomePage: React.FC = () => {
   }, [page, hasMore]);
 
   useEffect(() => {
-    const fetchUserData = async () => {
-      // Intenta Supabase Auth (por si acaso)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setCurrentUserId(user.id);
-        console.log("[USER] User ID desde Supabase Auth:", user.id);
-      } else if (wallet) {
-        setCurrentUserId(wallet);  // ← wallet address como ID principal
-        console.log("[USER] User ID desde MiniKit wallet:", wallet);
-      }
+    // Set currentUserId con wallet de MiniKit
+    if (wallet) {
+      setCurrentUserId(wallet);
+      console.log("[USER] currentUserId seteado con wallet:", wallet);
+    } else {
+      console.warn("[USER] No hay wallet disponible");
+    }
 
-      // Carga tier si tienes columna en users
-      if (currentUserId) {
-        const { data: profile } = await supabase
-          .from('users')  // o 'profiles' si usas esa tabla
-          .select('tier')
-          .eq('user_id', currentUserId)
-          .single();
-
-        setUserTier(profile?.tier || 'free');
-      }
-
-      fetchPosts(true);
-    };
-    fetchUserData();
+    fetchPosts(true);
   }, [fetchPosts, wallet]);
 
   useEffect(() => {
@@ -124,17 +108,17 @@ const HomePage: React.FC = () => {
     }
 
     if (!currentUserId) {
-      alert("No se encontró tu ID de usuario. Verifica con World ID primero o recarga la app.");
+      alert("No se encontró tu ID de usuario (wallet). Verifica con World ID primero o recarga la app.");
       return;
     }
 
-    console.log("[POST] Publicando con currentUserId:", currentUserId);
+    console.log("[POST] Publicando con currentUserId (wallet):", currentUserId);
 
     try {
       const { data: inserted, error: insertError } = await supabase
         .from('posts')
         .insert({
-          user_id: currentUserId,
+          user_id: currentUserId,  // wallet address
           content: newPostContent.trim(),
           timestamp: new Date().toISOString(),
           deleted_flag: false,
