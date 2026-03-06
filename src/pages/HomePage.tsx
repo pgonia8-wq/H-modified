@@ -5,7 +5,6 @@ import ActionButton from "../components/ActionButton";
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal.tsx";
 import { useUserBalance } from "../lib/useUserBalance";
-import { useMiniKitUser } from "../lib/useMiniKitUser";
 
 interface Post {
   id: string;
@@ -28,22 +27,23 @@ interface Post {
 
 const PAGE_SIZE = 5;
 
-const HomePage: React.FC = () => {
+const HomePage = (props: { userId: string | null }) => {
+  const { userId } = props;
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState<number>(0);
   const [hasMore, setHasMore] = useState<boolean>(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userTier, setUserTier] = useState<'free' | 'basic' | 'premium' | 'premium+'>('free');
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme, accentColor } = useContext(ThemeContext);
-  const { wallet } = useMiniKitUser();  // wallet address de MiniKit
 
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const currentUserId = userId;  // ← usa el nullifier_hash de App.tsx
 
   const maxChars = userTier === 'premium+' ? 10000 : userTier === 'premium' ? 4000 : 280;
 
@@ -58,7 +58,7 @@ const HomePage: React.FC = () => {
         .from("posts")
         .select("*")
         .order("timestamp", { ascending: false })
-        .range(from, to);  // feed global
+        .range(from, to);  // feed global (sin filtro user_id)
 
       if (error) throw error;
 
@@ -76,15 +76,26 @@ const HomePage: React.FC = () => {
   }, [page, hasMore]);
 
   useEffect(() => {
-    if (wallet) {
-      setCurrentUserId(wallet);
-      console.log("[USER] currentUserId seteado con wallet:", wallet);
-    } else {
-      console.warn("[USER] Wallet aún no disponible");
+    if (userId) {
+      console.log("[HOME] userId recibido de App.tsx:", userId);
+    }
+
+    // Carga tier si tienes columna en users/profiles
+    if (userId) {
+      const fetchTier = async () => {
+        const { data: profile } = await supabase
+          .from('profiles')  // o 'users'
+          .select('tier')
+          .eq('id', userId)
+          .single();
+
+        setUserTier(profile?.tier || 'free');
+      };
+      fetchTier();
     }
 
     fetchPosts(true);
-  }, [fetchPosts, wallet]);
+  }, [fetchPosts, userId]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -107,11 +118,11 @@ const HomePage: React.FC = () => {
     }
 
     if (!currentUserId) {
-      alert("No se detectó tu wallet. Recarga la app o verifica con World ID.");
+      alert("No se encontró tu ID (nullifier_hash). Verifica con World ID primero o recarga la app.");
       return;
     }
 
-    console.log("[POST] Publicando con currentUserId (wallet):", currentUserId);
+    console.log("[POST] Publicando con currentUserId:", currentUserId);
 
     try {
       const { data: inserted, error: insertError } = await supabase
@@ -188,13 +199,6 @@ const HomePage: React.FC = () => {
           </div>
         </div>
       </header>
-
-      {/* Mensaje pequeño si no hay wallet (para depurar) */}
-      {!currentUserId && (
-        <div className="text-center py-4 bg-red-900/30 text-red-300 text-sm">
-          No se detectó wallet. Recarga la app o verifica con World ID.
-        </div>
-      )}
 
       {/* Pull to refresh */}
       <div
