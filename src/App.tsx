@@ -2,6 +2,7 @@ import { useState } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { supabase } from "./supabaseClient";  // Asegúrate de que esta importación esté correcta
 
 function App() {
   const [verified, setVerified] = useState(false);
@@ -35,6 +36,14 @@ function App() {
         return;
       }
 
+      // Obtener el usuario actual de Supabase
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        setError("No estás logueado. Inicia sesión primero.");
+        return;
+      }
+
       const body = {
         proof: proofData.proof,
         merkle_root: proofData.merkle_root,
@@ -42,6 +51,7 @@ function App() {
         verification_level: proofData.verification_level,
         action: "verify-user",
         max_age: 7200,
+        userId: user.id  // Agregado: enviamos el userId al backend
       };
 
       const res = await fetch("/api/verify", {
