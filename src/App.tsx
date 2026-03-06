@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MiniKit, VerificationLevel } from "@worldcoin/minikit-js";
 import HomePage from "./pages/HomePage";
 import ErrorBoundary from "./components/ErrorBoundary";
+import { supabase } from "./supabaseClient";
 
 function App() {
   const [verified, setVerified] = useState(false);
@@ -9,6 +10,19 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // 1️⃣ Detectar automáticamente si ya hay usuario logueado en World App
+  useEffect(() => {
+    if (MiniKit.isInstalled()) {
+      const currentWallet = MiniKit.getWallet(); // Devuelve null si no hay wallet
+      if (currentWallet) {
+        setUserId(currentWallet);
+        setVerified(true);
+        setMessage("✅ Conectado automáticamente con World App");
+      }
+    }
+  }, []);
+
+  // 2️⃣ Manejar verificación manual solo si quieres reforzar
   const handleVerify = async () => {
     try {
       setError(null);
@@ -36,10 +50,8 @@ function App() {
         return;
       }
 
-      // --- Variable temporal para World ID ---
       const id = proofData.nullifier_hash;
 
-      // --- Enviamos al backend para registrar/verificar ---
       const body = {
         proof: proofData.proof,
         merkle_root: proofData.merkle_root,
@@ -47,7 +59,7 @@ function App() {
         verification_level: proofData.verification_level,
         action: "verify-user",
         max_age: 7200,
-        userId: id, // enviamos al backend
+        userId: id,
       };
 
       const res = await fetch("/api/verify", {
@@ -60,7 +72,7 @@ function App() {
 
       if (result.success) {
         setVerified(true);
-        setUserId(id); // estado global actualizado
+        setUserId(id);
         setMessage("✅ Verificación exitosa");
       } else {
         setError("Backend rechazó la prueba: " + (result.error || ""));
@@ -80,7 +92,7 @@ function App() {
             className="w-40 h-40 rounded-full mb-6 shadow-lg object-cover"
           />
           <p className="text-black text-2xl font-bold mb-6 text-center">
-            Verificando con H…
+            {message || "Verificando con H…"}
           </p>
           <button
             onClick={handleVerify}
@@ -88,7 +100,6 @@ function App() {
           >
             Iniciar verificación
           </button>
-          {message && <p className="mt-4 text-gray-700">{message}</p>}
           {error && <p className="mt-2 text-red-600">{error}</p>}
         </div>
       ) : (
