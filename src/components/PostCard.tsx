@@ -115,53 +115,66 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   // Tip
-  const handleTip = async () => {
-    if (!currentUserId || !tipAmount || tipAmount <= 0 || tipAmount > balance) {
-      setError("Cantidad inválida o fondos insuficientes");
-      return;
-    }
-    setError(null);
-    try {
-      await payWLD(tipAmount);
-      await supabase.from("tips").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-        amount: tipAmount,
-        timestamp: new Date().toISOString(),
-      });
-      setTipAmount("");
-    } catch (err) {
-      console.error(err);
-      setError("Error al enviar tip");
-    }
-  };
+  // Tip real con comisión del 10%
+const handleTip = async () => {
+  if (!currentUserId || !tipAmount || tipAmount <= 0 || tipAmount > balance) {
+    setError("Cantidad inválida o fondos insuficientes");
+    return;
+  }
 
-  // Boost
-  const handleBoost = async () => {
-    if (!currentUserId || balance < 1) {
-      setError("Fondos insuficientes para boost");
-      return;
-    }
-    setIsBoosting(true);
-    setError(null);
-    try {
-      await payWLD(1);
-      await supabase.from("boosts").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-        amount: 1,
-        timestamp: new Date().toISOString(),
-      });
-      // Opcional: actualizar visibility_score
-      await supabase
-        .from("posts")
-        .update({ visibility_score: post.visibility_score + 1 })
-        .eq("id", post.id);
-      setIsBoosting(false);
-    } catch (err) {
-      console.error(err);
-      setError("Error al boostear");
-      setIsBoosting(false);
+  setError(null);
+
+  try {
+    const appFeePercent = 10; // 10% de comisión para la app
+    const appFee = +(tipAmount * (appFeePercent / 100)).toFixed(2);
+    const recipientAmount = +(tipAmount - appFee).toFixed(2);
+
+    // Realiza el pago al usuario
+    await payWLD(recipientAmount, post.user_id);
+
+    // Opcional: registra la comisión de la app (si quieres llevar control)
+    await supabase.from("tips").insert({
+      post_id: post.id,
+      from_user_id: currentUserId,
+      to_user_id: post.user_id,
+      amount: tipAmount,
+      app_fee: appFee,
+      timestamp: new Date().toISOString(),
+    });
+
+    setTipAmount("");
+  } catch (err) {
+    console.error(err);
+    setError("Error al enviar tip");
+  }
+};
+try {
+  const boostCost = 1;
+  const platformFee = boostCost * 0.1;
+  const netAmount = boostCost - platformFee;
+
+  await payWLD(boostCost);
+
+  await supabase.from("boosts").insert({
+    post_id: post.id,
+    user_id: currentUserId,
+    amount: boostCost,
+    net_amount: netAmount,
+    platform_fee: platformFee,
+    timestamp: new Date().toISOString(),
+  });
+
+  // Actualizar visibility_score
+  await supabase
+    .from("posts")
+    .update({ visibility_score: post.visibility_score + 1 })
+    .eq("id", post.id);
+
+  setIsBoosting(false);
+} catch (err) {
+  console.error(err);
+  setError("Error al boostear");
+  setIsBoosting(false);
     }
   };
 
@@ -169,26 +182,29 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 space-y-4 border border-white/10">
       <div className="flex items-center gap-3">
         <img
-          src={post.profile.avatar_url || "default-avatar.png"}
-          alt={post.profile.username}
-          className="w-10 h-10 rounded-full object-cover"
-        />
+  src={
+    post.user_id
+      ? supabase
+          .storage
+          .from("avatars")
+          .getPublicUrl(`${post.user_id}.png`).data.publicUrl
+      : "default-avatar.png"
+  }
+  alt={post.profile?.username || "Anon"}
+  className="w-10 h-10 rounded-full object-cover"
+/>
         <div className="flex-1">
           <h3 className="font-bold text-white">
             {post.profile.username || "Anon"} {post.profile.is_premium && '✅'}  {/* Blue check for premium */}
           </h3>
-          <p className="text-gray-500 text-sm">{new Date(post.timestamp).toLocaleString()}</p>
-        </div>
-        {currentUserId && currentUserId !== post.user_id && (
-          <button
-            onClick={toggleFollow}
-            disabled={followLoading}
-            className="px-4 py-1 rounded-full text-sm font-medium"
-            style={{ backgroundColor: accentColor }}
-          >
-            {followLoading ? "..." : isFollowing ? "Unfollow" : "Follow"}
-          </button>
-        )}
+          <p className="text-gray-500 text-sm">
+  {new Date(post.timestamp || new Date().toISOString()).toLocaleString()}
+</p>
+{post.edited_at && (
+  <p className="text-gray-500 text-xs">
+    Editado {new Date(post.edited_at).toLocaleString()}
+  </p>
+)}
       </div>
 
       <p className="text-white whitespace-pre-wrap">{post.content}</p>
@@ -210,15 +226,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* TIP + BOOST */}
       <div className="flex flex-wrap gap-2 pt-3 items-center">
         <input
-          type="number"
-          step={0.1}
-          value={tipAmount}
-          onChange={(e) =>
-            setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
-          }
-          placeholder="Tip WLD"
-          className="w-20 px-2 py-1 rounded border text-black"
-        />
+  type="number"
+  step={0.1}
+  min={0.1}
+  max={balance}
+  value={tipAmount}
+  onChange={(e) =>
+    setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
+  }
+  placeholder="Tip WLD"
+  className="flex-1 sm:w-20 px-2 py-1 rounded border text-black"
+/>
         <button
           onClick={handleTip}
           className="px-3 py-1 rounded text-white font-medium shadow-sm"
