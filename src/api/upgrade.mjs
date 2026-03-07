@@ -37,22 +37,41 @@ async function createReferralToken(userId) {
   return token;
 }
 
+// Verifica tx on chain (Etherscan API for Optimism)
+async function verifyTxOnChain(transactionId) {
+  const apiKey = "YOUR_ETHERSCAN_API_KEY";  // ← obtén gratis en https://optimistic.etherscan.io/myapikey
+  const res = await fetch(`https://api-optimistic.etherscan.io/api?module=transaction&action=gettxreceiptstatus&txhash=\( {transactionId}&apikey= \){apiKey}`);
+  const data = await res.json();
+  return data.status === "1" && data.result === "1";  // 1 = success
+}
+
 // Handler principal
 export default async function handler(req, res) {
+  if (req.method === "GET" && req.query.getPrice === "true") {
+    const tier = req.query.tier;
+    if (!tier) return res.status(400).json({ success: false, error: "Missing tier" });
+    const price = await getUpgradePrice(tier);
+    return res.status(200).json({ success: true, price });
+  }
+
   if (req.method !== "POST") {
-    console.log("[BACKEND] Método no permitido:", req.method);
     return res.status(405).json({ success: false, error: "Method not allowed" });
   }
 
   const body = req.body || {};
-  const { userId, tier, transactionId, referralToken } = body;
+  const { userId, tier, transactionId } = body;
 
   if (!userId || !tier || !transactionId) {
-    console.log("[BACKEND] Faltan datos en body");
     return res.status(400).json({ success: false, error: "Missing required fields" });
   }
 
   try {
+    // Verificar tx on chain
+    const isTxSuccess = await verifyTxOnChain(transactionId);
+    if (!isTxSuccess) {
+      return res.status(400).json({ success: false, error: "Transacción no exitosa on chain" });
+    }
+
     const price = await getUpgradePrice(tier);
 
     // Insert upgrade
@@ -74,37 +93,11 @@ export default async function handler(req, res) {
 
     if (updateError) throw updateError;
 
-    // Si referralToken, aplica
-    if (referralToken) {
-      const { data: tokenData } = await supabase
-        .from("referral_tokens")
-        .select("*")
-        .eq("token", referralToken)
-        .single();
-
-      if (tokenData) {
-        await supabase.from("upgrades").insert({
-          user_id: userId,
-          tier: tokenData.tier,
-          price: 0,
-          start_date: new Date().toISOString(),
-          transaction_id: `referral-${nanoid(6)}`,
-          boost_limit: tokenData.boost_limit,
-          tips_allowed: tokenData.tips_allowed,
-        });
-
-        await supabase
-          .from("referral_tokens")
-          .update({ used_by: userId, used_at: new Date().toISOString() })
-          .eq("token", referralToken);
-      }
-    }
-
     const newReferralToken = await createReferralToken(userId);
 
     return res.status(200).json({ success: true, price, referralToken: newReferralToken });
   } catch (err) {
     console.error("[BACKEND] Error:", err);
-    return res.status(500).json({ success: false, error: "Server error" });
+    return res.status(500).json({ success: false, error: err.message || "Server error" });
   }
 }
