@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PostCard from '../components/PostCard';
-import { MiniKit } from '@worldcoin/minikit-js';  // ← agregamos MiniKit para pay
+import { supabase } from '../supabaseClient';  // ← para insert/update en Supabase
+import { MiniKit } from '@worldcoin/minikit-js';  // Para pagos reales
 
 interface Post {
   id: string;
@@ -26,20 +27,38 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
-  const [price, setPrice] = useState<number | null>(null);  // ← para mostrar precio dinámico
+  const [price, setPrice] = useState<number>(0);
+  const [slotsLeft, setSlotsLeft] = useState<number>(0);  // Para escasez
 
+  // Consultar precio dinámico y slots desde Supabase en frontend
   useEffect(() => {
     if (selectedTier) {
-      const fetchPrice = async () => {
-        const res = await fetch(`/api/upgrade?getPrice=true&tier=${selectedTier}`);
-        const data = await res.json();
-        setPrice(data.price);
+      const fetchPriceAndSlots = async () => {
+        try {
+          const { count } = await supabase
+            .from("upgrades")
+            .select("*", { count: "exact" })
+            .eq("tier", selectedTier);
+
+          const limit = selectedTier === "premium" ? 10000 : 3000;  // Límites de upgrade.mjs
+          setSlotsLeft(limit - (count || 0));
+          setPrice(count < limit ? (selectedTier === "premium" ? 10 : 15) : (selectedTier === "premium" ? 20 : 35));  // Precios dinámicos
+        } catch (err) {
+          setUpgradeError("Error al consultar precio");
+        }
       };
-      fetchPrice();
+      fetchPriceAndSlots();
     }
   }, [selectedTier]);
 
-  const handleUpgrade = (tier: "premium" | "premium+") => {
+  const handleUpgrade = () => {
+    setShowUpgradeOptions(true);
+    setUpgradeError(null);
+    setPrice(0);
+    setSlotsLeft(0);
+  };
+
+  const selectTier = (tier: "premium" | "premium+") => {
     setSelectedTier(tier);
     setShowSlideModal(true);
   };
@@ -47,6 +66,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
   const cancelUpgrade = () => {
     setShowSlideModal(false);
     setSelectedTier(null);
+    setShowUpgradeOptions(false);
   };
 
   const confirmUpgrade = async () => {
@@ -54,38 +74,57 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
 
     setLoadingUpgrade(true);
     setUpgradeError(null);
+
     try {
       // Pago real con MiniKit
       const payRes = await MiniKit.commandsAsync.pay({
         amount: price,
         currency: 'WLD',
-        recipient: '0x...tu_wallet_app',  // ← reemplaza con wallet de la app para cobrar WLD real
+        recipient: '0x...TU_WALLET_APP_PARA_COBRO',  // ← wallet de la app para cobrar WLD real
       });
 
-      if (payRes?.status !== "success") {
+      if (payRes.status !== "success") {
         throw new Error("Pago cancelado o fallido");
       }
 
-      const transactionId = payRes.transactionId;  // ← tx id real de MiniKit
+      const transactionId = payRes.transactionId;
 
-      const res = await fetch("/api/upgrade", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
+      // Registrar upgrade en Supabase (lógica de upgrade.mjs en frontend)
+      const { error: insertError } = await supabase.from("upgrades").insert({
+        user_id: currentUserId,
+        tier: selectedTier,
+        price,
+        start_date: new Date().toISOString(),
+        transaction_id: transactionId,
       });
 
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
+      if (insertError) throw insertError;
 
-      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${data.price} WLD`);
-      setShowUpgradeOptions(false);
-      setShowSlideModal(false);
-      setSelectedTier(null);
-      // Actualiza userTier local (o refresca app)
-      setUserTier(selectedTier);
+      // Update profiles.tier
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ tier: selectedTier })
+        .eq("id", currentUserId);
+
+      if (updateError) throw updateError;
+
+      // Crear referral token (lógica de upgrade.mjs en frontend)
+      const token = crypto.randomUUID().slice(0, 10);  // Simple UUID en lugar de nanoid
+      await supabase.from("referral_tokens").insert({
+        token,
+        created_by: currentUserId,
+        tier: selectedTier,
+        boost_limit: 1,
+        tips_allowed: false,
+        created_at: new Date().toISOString(),
+      });
+
+      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${price} WLD. Tu token de referido: ${token}`);
+      setUserTier(selectedTier);  // Actualiza tier local
+      cancelUpgrade();
     } catch (err: any) {
       console.error(err);
-      setUpgradeError(err.message);
+      setUpgradeError(err.message || "Error al procesar upgrade");
     } finally {
       setLoadingUpgrade(false);
     }
@@ -93,27 +132,36 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
 
   return (
     <div className="flex flex-col p-4">
-      <div className="mb-4">
-        {showUpgradeOptions && (
-          <div className="space-y-4">
-            <button
-              onClick={() => handleUpgrade("premium")}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold"
-            >
-              Premium - 10 WLD
-            </button>
-            <button
-              onClick={() => handleUpgrade("premium+")}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold"
-            >
-              Premium+ - 15 WLD
-            </button>
-          </div>
-        )}
+      {/* Botón principal de upgrade */}
+      <div className="mb-6">
+        <button
+          onClick={handleUpgrade}
+          className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-lg"
+        >
+          Upgrade
+        </button>
       </div>
 
+      {/* Opciones de tier */}
+      {showUpgradeOptions && (
+        <div className="space-y-4 mb-6">
+          <button
+            onClick={() => selectTier("premium")}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold shadow-md"
+          >
+            Premium
+          </button>
+          <button
+            onClick={() => selectTier("premium+")}
+            className="w-full py-4 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-md"
+          >
+            Premium+
+          </button>
+        </div>
+      )}
+
+      {/* Contenido del feed */}
       {loading ? (
-        // Skeletons
         <div className="space-y-5">
           {Array.from({ length: PAGE_SIZE }).map((_, i) => (
             <div key={i} className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 animate-pulse space-y-4 border border-white/10">
@@ -143,30 +191,48 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
         </div>
       )}
 
-      {upgradeError && <p className="text-red-500 text-center py-4">{upgradeError}</p>}
+      {upgradeError && <p className="text-red-500 text-center py-4 mt-4">{upgradeError}</p>}
 
-      {/* Slide Modal */}
+      {/* Slide Modal con beneficios ajustados + sugerencias implementadas */}
       {showSlideModal && selectedTier && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 animate-slide-up">
-            <h2 className="text-xl font-bold text-white mb-4">Beneficios de {selectedTier}</h2>
-            <ul className="text-gray-200 mb-6 list-disc list-inside space-y-2">
+            <h2 className="text-xl font-bold mb-4 text-white">Beneficios de {selectedTier}</h2>
+            <ul className="text-gray-400 mb-4 list-disc list-inside space-y-2">
               {selectedTier === "premium" && (
                 <>
-                  <li>Puedes recibir tips ilimitados</li>
-                  <li>Boost 5 veces por semana</li>
+                  <li>Tips ilimitados</li>
+                  <li>Boost 5 veces por semana, extra Boost pagando 5 WLD ilimitados</li>
                   <li>1 WLD por cada referido que se registre</li>
+                  <li>Posts hasta 4.000 caracteres</li>
+                  <li>Badge Premium visible</li>
+                  <li>Prioridad media en el feed</li>
+                  <li>Invita amigos y gana WLD (comparte tu referral token)</li>
+                  <li>Solo premium pueden ver respuestas premium</li>
+                  <li>Prueba primera semana gratis (limitada a primeros 100 usuarios)</li>
+                  <li>Solo quedan {slotsLeft} slots disponibles</li>
                 </>
               )}
               {selectedTier === "premium+" && (
                 <>
-                  <li>Puedes recibir tips ilimitados</li>
-                  <li>Boost ilimitado</li>
-                  <li>Bonificación extra de engagement</li>
+                  <li>Todo lo de Premium</li>
+                  <li>Tips con +10% de bonificación</li>
+                  <li>Boost ilimitado, extra Boost pagando 5 WLD ilimitados</li>
+                  <li>Posts hasta 10.000 caracteres</li>
+                  <li>Contenido exclusivo (solo premium+)</li>
+                  <li>Badge Premium+ dorado</li>
+                  <li>Prioridad máxima en el feed</li>
+                  <li>Recompensa por engagement (0.5 WLD / 100 likes)</li>
+                  <li>Invita amigos y gana WLD (comparte tu referral token)</li>
+                  <li>Premium+ pueden ocultar likes</li>
+                  <li>Prueba primera semana gratis (limitada a primeros 50 usuarios)</li>
+                  <li>Solo quedan {slotsLeft} slots disponibles</li>
                 </>
               )}
             </ul>
-            <p className="text-white text-center mb-4">Precio: {price} WLD</p>
+            <p className="text-center text-xl font-bold text-yellow-400 mb-6">
+              Precio: {price} WLD
+            </p>
             <div className="flex gap-4">
               <button
                 onClick={cancelUpgrade}
@@ -179,7 +245,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
                 disabled={loadingUpgrade}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
-                {loadingUpgrade ? "Procesando..." : "Confirmar"}
+                {loadingUpgrade ? "Procesando..." : "Aceptar"}
               </button>
             </div>
           </div>
