@@ -121,6 +121,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
+  // NUEVA CONSTANTE PARA TIMESTAMP ACTUAL EN MODAL
+  const currentTimestamp = new Date().toLocaleString();
+
   return (
     <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 space-y-4 border border-white/10">
       <div className="flex items-center gap-3">
@@ -195,6 +198,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-md border border-white/10">
             <h2 className="text-lg font-bold mb-3 text-white">Comentar</h2>
+            
+            {/* NUEVO: MOSTRAR TIMESTAMP ACTUAL */}
+            <p className="text-gray-400 text-xs mb-2">Hora: {currentTimestamp}</p>
+            
             <textarea
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
