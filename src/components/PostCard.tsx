@@ -33,8 +33,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [tipAmount, setTipAmount] = useState<number | "">("");
   const [isBoosting, setIsBoosting] = useState(false);
 
+  // Avatar
+  const [avatarUrl, setAvatarUrl] = useState("default-avatar.png");
+
   // Error state
   const [error, setError] = useState<string | null>(null);
+
+  // Load avatar from Supabase Storage
+  useEffect(() => {
+    if (post.user_id) {
+      const fetchAvatar = async () => {
+        const { data } = supabase.storage.from("avatars").getPublicUrl(`${post.user_id}.png`);
+        if (data?.publicUrl) setAvatarUrl(data.publicUrl);
+      };
+      fetchAvatar();
+    }
+  }, [post.user_id]);
 
   // Check if liked
   useEffect(() => {
@@ -114,67 +128,77 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // Tip
-  // Tip real con comisión del 10%
-const handleTip = async () => {
-  if (!currentUserId || !tipAmount || tipAmount <= 0 || tipAmount > balance) {
-    setError("Cantidad inválida o fondos insuficientes");
-    return;
-  }
+  // Tip con comisión del 10%
+  const handleTip = async () => {
+    if (!currentUserId || !tipAmount || tipAmount <= 0 || tipAmount > balance) {
+      setError("Cantidad inválida o fondos insuficientes");
+      return;
+    }
 
-  setError(null);
+    setError(null);
 
-  try {
-    const appFeePercent = 10; // 10% de comisión para la app
-    const appFee = +(tipAmount * (appFeePercent / 100)).toFixed(2);
-    const recipientAmount = +(tipAmount - appFee).toFixed(2);
+    try {
+      const appFeePercent = 10; // 10% de comisión para la app
+      const appFee = +(tipAmount * (appFeePercent / 100)).toFixed(2);
+      const recipientAmount = +(tipAmount - appFee).toFixed(2);
 
-    // Realiza el pago al usuario
-    await payWLD(recipientAmount, post.user_id);
+      // Realiza el pago al usuario
+      await payWLD(recipientAmount, post.user_id);
 
-    // Opcional: registra la comisión de la app (si quieres llevar control)
-    await supabase.from("tips").insert({
-      post_id: post.id,
-      from_user_id: currentUserId,
-      to_user_id: post.user_id,
-      amount: tipAmount,
-      app_fee: appFee,
-      timestamp: new Date().toISOString(),
-    });
+      // Registrar la comisión
+      await supabase.from("tips").insert({
+        post_id: post.id,
+        from_user_id: currentUserId,
+        to_user_id: post.user_id,
+        amount: tipAmount,
+        app_fee: appFee,
+        timestamp: new Date().toISOString(),
+      });
 
-    setTipAmount("");
-  } catch (err) {
-    console.error(err);
-    setError("Error al enviar tip");
-  }
-};
-try {
-  const boostCost = 1;
-  const platformFee = boostCost * 0.1;
-  const netAmount = boostCost - platformFee;
+      setTipAmount("");
+    } catch (err) {
+      console.error(err);
+      setError("Error al enviar tip");
+    }
+  };
 
-  await payWLD(boostCost);
+  // Boost con comisión 10%
+  const handleBoost = async () => {
+    if (!currentUserId || balance < 1) {
+      setError("Fondos insuficientes para boost");
+      return;
+    }
 
-  await supabase.from("boosts").insert({
-    post_id: post.id,
-    user_id: currentUserId,
-    amount: boostCost,
-    net_amount: netAmount,
-    platform_fee: platformFee,
-    timestamp: new Date().toISOString(),
-  });
+    setIsBoosting(true);
+    setError(null);
 
-  // Actualizar visibility_score
-  await supabase
-    .from("posts")
-    .update({ visibility_score: post.visibility_score + 1 })
-    .eq("id", post.id);
+    try {
+      const boostCost = 1;
+      const platformFee = +(boostCost * 0.1).toFixed(2);
+      const netAmount = +(boostCost - platformFee).toFixed(2);
 
-  setIsBoosting(false);
-} catch (err) {
-  console.error(err);
-  setError("Error al boostear");
-  setIsBoosting(false);
+      await payWLD(boostCost);
+
+      await supabase.from("boosts").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        amount: boostCost,
+        net_amount: netAmount,
+        platform_fee: platformFee,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Actualizar visibility_score
+      await supabase
+        .from("posts")
+        .update({ visibility_score: post.visibility_score + 1 })
+        .eq("id", post.id);
+
+      setIsBoosting(false);
+    } catch (err) {
+      console.error(err);
+      setError("Error al boostear");
+      setIsBoosting(false);
     }
   };
 
@@ -182,34 +206,36 @@ try {
     <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 space-y-4 border border-white/10">
       <div className="flex items-center gap-3">
         <img
-  src={
-    post.user_id
-      ? supabase
-          .storage
-          .from("avatars")
-          .getPublicUrl(`${post.user_id}.png`).data.publicUrl
-      : "default-avatar.png"
-  }
-  alt={post.profile?.username || "Anon"}
-  className="w-10 h-10 rounded-full object-cover"
-/>
+          src={avatarUrl}
+          alt={post.profile?.username || "Anon"}
+          className="w-10 h-10 rounded-full object-cover"
+        />
         <div className="flex-1">
           <h3 className="font-bold text-white">
-            {post.profile.username || "Anon"} {post.profile.is_premium && '✅'}  {/* Blue check for premium */}
+            {post.profile?.username || "Anon"} {post.profile?.is_premium && '✅'}
           </h3>
           <p className="text-gray-500 text-sm">
-  {new Date(post.timestamp || new Date().toISOString()).toLocaleString()}
-</p>
-{post.edited_at && (
-  <p className="text-gray-500 text-xs">
-    Editado {new Date(post.edited_at).toLocaleString()}
-  </p>
-)}
+            {new Date(post.timestamp || new Date().toISOString()).toLocaleString()}
+          </p>
+          {post.edited_at && (
+            <p className="text-gray-500 text-xs">
+              Editado {new Date(post.edited_at).toLocaleString()}
+            </p>
+          )}
+        </div>
+        {currentUserId && currentUserId !== post.user_id && (
+          <button
+            onClick={toggleFollow}
+            disabled={followLoading}
+            className="px-4 py-1 rounded-full text-sm font-medium"
+            style={{ backgroundColor: accentColor }}
+          >
+            {followLoading ? "..." : isFollowing ? "Unfollow" : "Follow"}
+          </button>
+        )}
       </div>
 
       <p className="text-white whitespace-pre-wrap">{post.content}</p>
-
-      {post.edited_at && <p className="text-gray-500 text-xs">Editado</p>}
 
       <div className="flex gap-4 text-gray-400 text-sm">
         <button onClick={handleLike}>
@@ -226,17 +252,17 @@ try {
       {/* TIP + BOOST */}
       <div className="flex flex-wrap gap-2 pt-3 items-center">
         <input
-  type="number"
-  step={0.1}
-  min={0.1}
-  max={balance}
-  value={tipAmount}
-  onChange={(e) =>
-    setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
-  }
-  placeholder="Tip WLD"
-  className="flex-1 sm:w-20 px-2 py-1 rounded border text-black"
-/>
+          type="number"
+          step={0.1}
+          min={0.1}
+          max={balance}
+          value={tipAmount}
+          onChange={(e) =>
+            setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
+          }
+          placeholder="Tip WLD"
+          className="flex-1 sm:w-20 px-2 py-1 rounded border text-black"
+        />
         <button
           onClick={handleTip}
           className="px-3 py-1 rounded text-white font-medium shadow-sm"
