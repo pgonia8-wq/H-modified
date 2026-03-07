@@ -1,8 +1,10 @@
+// src/components/PostCard.tsx
 import React, { useEffect, useState, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { useMiniKitUser } from "../lib/useMiniKitUser";
+import { useAvatar } from "../lib/useAvatar";
 
 interface PostCardProps {
   post: any;
@@ -33,22 +35,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [tipAmount, setTipAmount] = useState<number | "">("");
   const [isBoosting, setIsBoosting] = useState(false);
 
-  // Avatar
-  const [avatarUrl, setAvatarUrl] = useState("default-avatar.png");
-
   // Error state
   const [error, setError] = useState<string | null>(null);
 
-  // Load avatar from Supabase Storage
-  useEffect(() => {
-    if (post.user_id) {
-      const fetchAvatar = async () => {
-        const { data } = supabase.storage.from("avatars").getPublicUrl(`${post.user_id}.png`);
-        if (data?.publicUrl) setAvatarUrl(data.publicUrl);
-      };
-      fetchAvatar();
-    }
-  }, [post.user_id]);
+  // Avatar
+  const { avatarUrl } = useAvatar(post.user_id);
 
   // Check if liked
   useEffect(() => {
@@ -145,7 +136,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       // Realiza el pago al usuario
       await payWLD(recipientAmount, post.user_id);
 
-      // Registrar la comisión
+      // Registra la transacción
       await supabase.from("tips").insert({
         post_id: post.id,
         from_user_id: currentUserId,
@@ -162,7 +153,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // Boost con comisión 10%
+  // Boost
   const handleBoost = async () => {
     if (!currentUserId || balance < 1) {
       setError("Fondos insuficientes para boost");
@@ -212,7 +203,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         />
         <div className="flex-1">
           <h3 className="font-bold text-white">
-            {post.profile?.username || "Anon"} {post.profile?.is_premium && '✅'}
+            {post.profile?.username || "Anon"}{" "}
+            {post.profile?.is_premium && "✅"}
           </h3>
           <p className="text-gray-500 text-sm">
             {new Date(post.timestamp || new Date().toISOString()).toLocaleString()}
@@ -241,12 +233,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         <button onClick={handleLike}>
           {liked ? "❤️" : "♡"} {likes}
         </button>
-        <button onClick={() => setShowCommentModal(true)}>
-          💬 {comments}
-        </button>
-        <button onClick={handleRepost}>
-          🔁 {reposts}
-        </button>
+        <button onClick={() => setShowCommentModal(true)}>💬 {comments}</button>
+        <button onClick={handleRepost}>🔁 {reposts}</button>
       </div>
 
       {/* TIP + BOOST */}
