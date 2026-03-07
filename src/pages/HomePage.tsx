@@ -38,18 +38,19 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const { theme } = useContext(ThemeContext);
-
   const containerRef = useRef<HTMLDivElement>(null);
 
   const maxChars = userTier === "premium+" ? 10000 : userTier === "premium" ? 4000 : 280;
 
+  // ← INSERCIÓN SOLAMENTE: Definir PAGE_SIZE aquí dentro del componente
+  const PAGE_SIZE = 5;
+
   const fetchPosts = useCallback(async (reset = false) => {
-    const PAGE_SIZE_LOCAL = 5; // ← variable local para evitar ReferenceError
     if (!hasMore && !reset) return;
     try {
       setLoading(true);
-      const from = reset ? 0 : page * PAGE_SIZE_LOCAL;
-      const to = from + PAGE_SIZE_LOCAL - 1;
+      const from = reset ? 0 : page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
       const { data, error } = await supabase
         .from("posts")
@@ -61,7 +62,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       const newPosts = data || [];
       setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
-      setHasMore(newPosts.length === PAGE_SIZE_LOCAL);
+      setHasMore(newPosts.length === PAGE_SIZE);
       if (reset) setPage(1);
       else setPage((prev) => prev + 1);
     } catch (err: any) {
@@ -75,7 +76,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   useEffect(() => {
     console.log("[HOME] userId recibido desde App.tsx:", userId);
 
-    // Carga tier si tienes columna en profiles
     if (userId) {
       const fetchTier = async () => {
         const { data: profile } = await supabase
