@@ -1,10 +1,8 @@
-// src/components/PostCard.tsx
-import React, { useEffect, useState, useContext } from "react";
+import React, { useState, useEffect, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { useMiniKitUser } from "../lib/useMiniKitUser";
-import { useAvatar } from "../lib/useAvatar";
 
 interface PostCardProps {
   post: any;
@@ -12,184 +10,114 @@ interface PostCardProps {
 }
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
-  const { theme, accentColor } = useContext(ThemeContext);
-  const { balance, payWLD } = useMiniKitUser(currentUserId);
+  const { theme } = useContext(ThemeContext);
+  const { balance, sendWLD } = useMiniKitUser(currentUserId);
 
-  // Follow
-  const { isFollowing, toggleFollow, loading: followLoading } = useFollow(
-    currentUserId,
-    post.user_id
-  );
-
-  // Reactions
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
   const [reposts, setReposts] = useState(post.reposts || 0);
   const [comments, setComments] = useState(post.comments || 0);
 
-  // Comment Modal
-  const [showCommentModal, setShowCommentModal] = useState(false);
-  const [commentText, setCommentText] = useState("");
+  const [followers, setFollowers] = useState(post.profile?.followers_count || 0);
+  const [following, setFollowing] = useState(post.profile?.following_count || 0);
+  const { isFollowing, toggleFollow, loading: followLoading } = useFollow(
+    currentUserId,
+    post.user_id
+  );
 
-  // Tip / Boost
+  useEffect(() => {
+    if (!post.user_id) return;
+
+    const fetchStats = async () => {
+      try {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("followers_count, following_count")
+          .eq("id", post.user_id)
+          .single();
+
+        if (profileData) {
+          setFollowers(profileData.followers_count || 0);
+          setFollowing(profileData.following_count || 0);
+        }
+      } catch (err) {
+        console.error("Error fetching followers/following:", err);
+      }
+    };
+
+    fetchStats();
+  }, [post.user_id]);
+
+  // TIP + BOOST
   const [tipAmount, setTipAmount] = useState<number | "">("");
   const [isBoosting, setIsBoosting] = useState(false);
-
-  // Error state
+  const [showCommentModal, setShowCommentModal] = useState(false);
+  const [commentText, setCommentText] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const accentColor = "#7c3aed";
 
-  // Avatar
-  const { avatarUrl } = useAvatar(post.user_id);
-
-  // Check if liked
-  useEffect(() => {
-    if (!currentUserId) return;
-    const checkLike = async () => {
-      const { data } = await supabase
-        .from("likes")
-        .select("id")
-        .eq("post_id", post.id)
-        .eq("user_id", currentUserId)
-        .single();
-      if (data) setLiked(true);
-    };
-    checkLike();
-  }, [currentUserId, post.id]);
-
-  // Like
-  const handleLike = async () => {
-    if (!currentUserId) return;
-    setError(null);
-    try {
-      if (liked) {
-        await supabase
-          .from("likes")
-          .delete()
-          .eq("post_id", post.id)
-          .eq("user_id", currentUserId);
-        setLikes((prev) => prev - 1);
-        setLiked(false);
-      } else {
-        await supabase.from("likes").insert({
-          post_id: post.id,
-          user_id: currentUserId,
-        });
-        setLikes((prev) => prev + 1);
-        setLiked(true);
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Error al dar like");
-    }
-  };
-
-  // Repost
-  const handleRepost = async () => {
-    if (!currentUserId) return;
-    setError(null);
-    try {
-      await supabase.from("reposts").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-      });
-      setReposts((prev) => prev + 1);
-    } catch (err) {
-      console.error(err);
-      setError("Error al repostear");
-    }
-  };
-
-  // Comment
-  const handleComment = async () => {
-    if (!currentUserId || !commentText.trim()) return;
-    setError(null);
-    try {
-      await supabase.from("comments").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-        content: commentText.trim(),
-        timestamp: new Date().toISOString(),
-      });
-      setComments((prev) => prev + 1);
-      setShowCommentModal(false);
-      setCommentText("");
-    } catch (err) {
-      console.error(err);
-      setError("Error al publicar comentario");
-    }
-  };
-
-  // Tip con comisión del 10%
   const handleTip = async () => {
-    if (!currentUserId || !tipAmount || tipAmount <= 0 || tipAmount > balance) {
-      setError("Cantidad inválida o fondos insuficientes");
+    if (!currentUserId || !post.user_id || !tipAmount || tipAmount < 1) {
+      setError("Tip mínimo 1 WLD");
       return;
     }
-
-    setError(null);
-
     try {
-      const appFeePercent = 10; // 10% de comisión para la app
-      const appFee = +(tipAmount * (appFeePercent / 100)).toFixed(2);
-      const recipientAmount = +(tipAmount - appFee).toFixed(2);
+      const creatorAmount = tipAmount * 0.9;
+      const appAmount = tipAmount * 0.1;
 
-      // Realiza el pago al usuario
-      await payWLD(recipientAmount, post.user_id);
+      await sendWLD(post.user_id, creatorAmount); // 90% al creador
+      await sendWLD("APP_WLD_ACCOUNT", appAmount); // 10% a la app (reemplaza ID real)
 
-      // Registra la transacción
-      await supabase.from("tips").insert({
-        post_id: post.id,
-        from_user_id: currentUserId,
-        to_user_id: post.user_id,
-        amount: tipAmount,
-        app_fee: appFee,
-        timestamp: new Date().toISOString(),
-      });
-
+      alert(`Tip de ${tipAmount} WLD enviado (90% al creador, 10% a la app)`);
       setTipAmount("");
-    } catch (err) {
-      console.error(err);
-      setError("Error al enviar tip");
+    } catch (err: any) {
+      console.error("Error enviando tip:", err);
+      setError(err.message || "Error enviando tip");
     }
   };
 
-  // Boost
   const handleBoost = async () => {
-    if (!currentUserId || balance < 1) {
-      setError("Fondos insuficientes para boost");
-      return;
-    }
-
+    if (!currentUserId || !post.user_id) return;
     setIsBoosting(true);
-    setError(null);
+    const boostAmount = 5; // WLD fijo
 
     try {
-      const boostCost = 1;
-      const platformFee = +(boostCost * 0.1).toFixed(2);
-      const netAmount = +(boostCost - platformFee).toFixed(2);
-
-      await payWLD(boostCost);
-
-      await supabase.from("boosts").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-        amount: boostCost,
-        net_amount: netAmount,
-        platform_fee: platformFee,
-        timestamp: new Date().toISOString(),
-      });
-
-      // Actualizar visibility_score
+      await sendWLD(post.user_id, boostAmount); // envía WLD al creador
+      // Lógica de boost: activa por 6 horas en DB
       await supabase
         .from("posts")
-        .update({ visibility_score: post.visibility_score + 1 })
+        .update({
+          boosted_until: new Date(Date.now() + 6 * 60 * 60 * 1000).toISOString(),
+        })
         .eq("id", post.id);
 
+      alert("Boost enviado 🚀 (dura 6 horas)");
+    } catch (err: any) {
+      console.error("Error en boost:", err);
+      setError(err.message || "Error en boost");
+    } finally {
       setIsBoosting(false);
-    } catch (err) {
-      console.error(err);
-      setError("Error al boostear");
-      setIsBoosting(false);
+    }
+  };
+
+  const handleComment = async () => {
+    if (!commentText.trim() || !currentUserId) return;
+    try {
+      await supabase
+        .from("comments")
+        .insert({
+          post_id: post.id,
+          user_id: currentUserId,
+          content: commentText,
+          timestamp: new Date().toISOString(),
+        });
+      alert("Comentario publicado");
+      setCommentText("");
+      setShowCommentModal(false);
+      setComments((prev) => prev + 1);
+    } catch (err: any) {
+      console.error("Error comentando:", err);
+      setError(err.message || "Error publicando comentario");
     }
   };
 
@@ -197,58 +125,53 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     <div className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 space-y-4 border border-white/10">
       <div className="flex items-center gap-3">
         <img
-          src={avatarUrl}
+          src={post.profile?.avatar_url || "default-avatar.png"}
           alt={post.profile?.username || "Anon"}
           className="w-10 h-10 rounded-full object-cover"
         />
         <div className="flex-1">
           <h3 className="font-bold text-white">
-            {post.profile?.username || "Anon"}{" "}
-            {post.profile?.is_premium && "✅"}
+            {post.profile?.username || "Anon"} {post.profile?.is_premium && "✅"}
           </h3>
-          <p className="text-gray-500 text-sm">
-            {new Date(post.timestamp || new Date().toISOString()).toLocaleString()}
-          </p>
-          {post.edited_at && (
-            <p className="text-gray-500 text-xs">
-              Editado {new Date(post.edited_at).toLocaleString()}
-            </p>
+          <div className="text-gray-400 text-xs flex gap-3 mt-1">
+            <span>Followers: {followers}</span>
+            <span>Following: {following}</span>
+          </div>
+          {currentUserId && post.user_id !== currentUserId && (
+            <button
+              onClick={async () => {
+                await toggleFollow();
+                setFollowers((prev) => (isFollowing ? prev - 1 : prev + 1));
+              }}
+              disabled={followLoading}
+              className="mt-1 px-3 py-1 rounded bg-purple-600 text-white text-xs hover:bg-purple-700 transition"
+            >
+              {isFollowing ? "Siguiendo" : "Seguir"}
+            </button>
           )}
         </div>
-        {currentUserId && currentUserId !== post.user_id && (
-          <button
-            onClick={toggleFollow}
-            disabled={followLoading}
-            className="px-4 py-1 rounded-full text-sm font-medium"
-            style={{ backgroundColor: accentColor }}
-          >
-            {followLoading ? "..." : isFollowing ? "Unfollow" : "Follow"}
-          </button>
-        )}
       </div>
 
       <p className="text-white whitespace-pre-wrap">{post.content}</p>
 
       <div className="flex gap-4 text-gray-400 text-sm">
-        <button onClick={handleLike}>
+        <button onClick={() => setLiked(!liked)}>
           {liked ? "❤️" : "♡"} {likes}
         </button>
-        <button onClick={() => setShowCommentModal(true)}>💬 {comments}</button>
-        <button onClick={handleRepost}>🔁 {reposts}</button>
+        <button>💬 {comments}</button>
+        <button>🔁 {reposts}</button>
       </div>
 
-      {/* TIP + BOOST */}
       <div className="flex flex-wrap gap-2 pt-3 items-center">
         <input
           type="number"
           step={0.1}
-          min={0.1}
+          min={1}
           max={balance}
           value={tipAmount}
           onChange={(e) =>
             setTipAmount(e.target.value ? parseFloat(e.target.value) : "")
           }
-          placeholder="Tip WLD"
           className="flex-1 sm:w-20 px-2 py-1 rounded border text-black"
         />
         <button
@@ -268,7 +191,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </button>
       </div>
 
-      {/* MODAL COMENTARIOS */}
       {showCommentModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-gray-900 rounded-3xl p-6 w-full max-w-md border border-white/10">
@@ -277,7 +199,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               className="w-full bg-black border border-gray-700 rounded-xl p-3 min-h-[100px] text-white"
-              placeholder="Escribe tu comentario..."
             />
             <div className="flex justify-end gap-3 mt-4">
               <button
