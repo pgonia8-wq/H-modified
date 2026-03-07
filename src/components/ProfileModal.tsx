@@ -40,9 +40,6 @@ const emptyProfile: UserProfile = {
   following_count: 0,
 };
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 400; // ms
-
 const ProfileModal: React.FC<ProfileModalProps> = ({
   currentUserId,
   onClose,
@@ -60,54 +57,32 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Persistencia de theme
+  // Persistencia de tema
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-    if (savedTheme && savedTheme !== theme) {
-      setTheme(savedTheme as "dark" | "light");
+    const storedTheme = localStorage.getItem("theme");
+    if (storedTheme && storedTheme !== theme) {
+      setTheme(storedTheme as "dark" | "light");
     }
   }, []);
 
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("theme", newTheme);
-  };
-
-  const showToast = (message: string, type: "success" | "error" = "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const retryFetch = async <T extends any>(fn: () => Promise<T>) => {
-    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      try {
-        return await fn();
-      } catch (err) {
-        if (attempt < MAX_RETRIES - 1) await new Promise(res => setTimeout(res, RETRY_DELAY));
-        else throw err;
-      }
-    }
-  };
+  useEffect(() => {
+    localStorage.setItem("theme", theme);
+  }, [theme]);
 
   const handleUpgrade = async (tier: "premium" | "premium+") => {
     if (!currentUserId) return;
-
     try {
-      const res = await retryFetch(() =>
-        fetch("/api/upgrade", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: currentUserId,
-            tier,
-            transactionId: "tx-test-001", // reemplaza con transacción WLD real
-          }),
-        })
-      );
-
+      const res = await fetch("/api/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          tier,
+          transactionId: "tx-test-001",
+        }),
+      });
       const data = await res.json();
-
+      console.log("Upgrade response:", data);
       if (data.success) {
         showToast(`Upgrade exitoso: ${tier}`, "success");
         setProfile(prev => ({ ...prev, tier }));
@@ -117,6 +92,20 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     } catch (err: any) {
       console.error("Error conectando con API upgrade:", err);
       showToast("No se pudo conectar con la API de upgrade", "error");
+    }
+  };
+
+  // Función de retry simple
+  const fetchWithRetry = async (fn: () => Promise<any>, retries = 2, delay = 400) => {
+    try {
+      return await fn();
+    } catch (err) {
+      if (retries > 0) {
+        await new Promise(r => setTimeout(r, delay));
+        return fetchWithRetry(fn, retries - 1, delay);
+      } else {
+        throw err;
+      }
     }
   };
 
@@ -132,15 +121,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       }
 
       try {
-        const { data, error: fetchError } = await retryFetch(() =>
-          supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", currentUserId)
-            .single()
+        const { data, error: fetchError } = await fetchWithRetry(() =>
+          supabase.from("profiles").select("*").eq("id", currentUserId).single()
         );
 
-        if (fetchError && fetchError.code !== "PGRST116") throw fetchError;
+        if (fetchError && fetchError.code !== "PGRST116") {
+          throw fetchError;
+        }
 
         if (data) {
           setProfile(data);
@@ -161,11 +148,10 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             followers_count: 0,
             following_count: 0,
           };
-
-          await retryFetch(() =>
+          const { error: upsertError } = await fetchWithRetry(() =>
             supabase.from("profiles").upsert(newProfile)
           );
-
+          if (upsertError) throw upsertError;
           setProfile(newProfile);
         }
       } catch (err: any) {
@@ -179,25 +165,27 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     loadOrCreateProfile();
   }, [currentUserId]);
 
+  const showToast = (message: string, type: "success" | "error" = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const handleSave = async () => {
     if (!currentUserId) return;
     setSaving(true);
-
     try {
-      await retryFetch(() =>
-        supabase
-          .from("profiles")
-          .upsert({
-            id: currentUserId,
-            name: profile.name,
-            bio: profile.bio,
-            birthdate: profile.birthdate,
-            city: profile.city,
-            country: profile.country,
-            avatar_url: profile.avatar_url,
-          })
+      const { error } = await fetchWithRetry(() =>
+        supabase.from("profiles").upsert({
+          id: currentUserId,
+          name: profile.name,
+          bio: profile.bio,
+          birthdate: profile.birthdate,
+          city: profile.city,
+          country: profile.country,
+          avatar_url: profile.avatar_url,
+        })
       );
-
+      if (error) throw error;
       showToast("Perfil guardado correctamente ✅");
       onClose();
     } catch (err: any) {
@@ -210,7 +198,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUserId) return;
-
     if (!file.type.startsWith("image/")) {
       showToast("Solo se permiten imágenes (JPG, PNG, etc.)", "error");
       return;
@@ -225,21 +212,25 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     const fileName = `${currentUserId}/avatar-${timestamp}`;
 
     try {
-      const { error: uploadError } = await retryFetch(() =>
-        supabase.storage.from("avatars").upload(fileName, file, { upsert: true })
-      );
-
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
+      const { data: urlData } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(fileName);
+      if (!urlData?.publicUrl) throw new Error("No se pudo obtener URL del avatar");
 
-      const newAvatarUrl = `${urlData?.publicUrl || "/default-avatar.png"}?t=${timestamp}`;
+      const newAvatarUrl = `${urlData.publicUrl}?t=${timestamp}`;
 
-      await retryFetch(() =>
-        supabase.from("profiles").update({ avatar_url: newAvatarUrl }).eq("id", currentUserId)
-      );
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ avatar_url: newAvatarUrl })
+        .eq("id", currentUserId);
+      if (updateError) throw updateError;
 
-      setProfile((prev) => ({ ...prev, avatar_url: newAvatarUrl }));
+      setProfile(prev => ({ ...prev, avatar_url: newAvatarUrl }));
       showToast("Avatar actualizado correctamente");
     } catch (err: any) {
       console.error("Error en avatar:", err);
@@ -247,6 +238,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     } finally {
       setUploadingAvatar(false);
     }
+  };
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("theme", newTheme);
   };
 
   const joinedDate = profile.created_at
@@ -258,7 +255,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   const isPremium = profile.tier === "premium" || profile.tier === "premium+";
 
-  // Clases condicionales por tema
   const modalBg = theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black";
   const headerGradient = theme === "dark" ? "from-indigo-600 to-purple-600" : "from-indigo-500 to-purple-500";
   const inputBg = theme === "dark" ? "bg-gray-800" : "bg-gray-200 text-black";
@@ -292,7 +288,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
   return (
     <div className={`fixed inset-0 bg-black/80 flex flex-col z-50 ${modalBg}`}>
-      {/* Toast */}
       {toast && (
         <div
           className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 animate-fade-in-out ${
@@ -303,7 +298,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </div>
       )}
 
-      {/* Header */}
       <div className={`relative bg-gradient-to-r ${headerGradient} h-32 flex-shrink-0`}>
         <button
           onClick={onClose}
@@ -322,7 +316,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         </button>
       </div>
 
-      {/* Avatar */}
       <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-28 h-28 z-20">
         <img
           src={profile.avatar_url || "/default-avatar.png"}
@@ -347,17 +340,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         />
       </div>
 
-      {/* Contenido principal */}
       <div className="flex-1 overflow-y-auto">
         <div className="pt-14 px-6 pb-6">
           <input
             value={profile.name}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (val.length <= 50) setProfile({ ...profile, name: val });
-            }}
+            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
             className={`bg-transparent text-2xl font-bold w-full focus:outline-none ${textGray}`}
             placeholder="Tu nombre"
+            maxLength={50}
           />
           <p className={textGray + " mt-1"}>@{profile.username || "sin_username"}</p>
 
@@ -404,7 +394,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
 
-        {/* Tabs */}
         <div className={`flex border-b ${borderColor} sticky top-0 ${modalBg} z-10`}>
           {(["posts", "responses", "likes"] as const).map((tab) => (
             <button
@@ -431,7 +420,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           )}
         </div>
 
-        {/* Edición extra */}
         <div className={`p-6 border-t ${borderColor} space-y-5`}>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -467,3 +455,34 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           </div>
         </div>
       </div>
+
+      <div className={`border-t ${borderColor} p-4 flex gap-3 flex-shrink-0`}>
+        {showUpgradeButton && (
+          <button
+            onClick={() => handleUpgrade("premium")}
+            className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonGreen}`}
+          >
+            Subir a Premium
+          </button>
+        )}
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonGreen} ${saving ? "opacity-60 cursor-not-allowed" : ""}`}
+        >
+          {saving ? "Guardando..." : "Guardar"}
+        </button>
+
+        <button
+          onClick={onClose}
+          className={`flex-1 py-3.5 rounded-xl text-white font-semibold ${buttonRed}`}
+        >
+          Cancelar
+        </button>
+      </div>
+    </div> 
+  );
+};
+
+export default ProfileModal;
