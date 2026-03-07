@@ -20,20 +20,22 @@ interface FeedPageProps {
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserId, userTier }) => {
-  // === START: NUEVAS VARIABLES DE ESTADO PARA UPGRADE ===
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
   const [selectedTier, setSelectedTier] = useState<"premium" | "premium+" | null>(null);
-  const [showBenefitsModal, setShowBenefitsModal] = useState(false);
+  const [showSlideModal, setShowSlideModal] = useState(false);
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
-  // === END: NUEVAS VARIABLES DE ESTADO ===
 
-  // === START: NUEVA FUNCION handleUpgradeConfirm ===
-  const handleUpgradeConfirm = async () => {
-    if (!currentUserId || !selectedTier) return;
+  const handleUpgrade = async (tier: "premium" | "premium+") => {
+    setSelectedTier(tier);
+    setShowSlideModal(true);
+  };
+
+  const confirmUpgrade = async () => {
+    if (!currentUserId || !selectedTier) return alert("No se encontró tu ID o tier seleccionado.");
 
     setLoadingUpgrade(true);
     try {
-      const transactionId = crypto.randomUUID(); // MiniKit Wallet manejará la real
+      const transactionId = crypto.randomUUID();
       const res = await fetch("/api/upgrade.mjs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -42,9 +44,9 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       const data = await res.json();
       if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
 
-      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${data.price} USD`);
+      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${data.price} WLD`);
       setShowUpgradeOptions(false);
-      setShowBenefitsModal(false);
+      setShowSlideModal(false);
       setSelectedTier(null);
     } catch (err: any) {
       console.error("Upgrade error:", err);
@@ -53,56 +55,13 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       setLoadingUpgrade(false);
     }
   };
-  // === END: NUEVA FUNCION ===
 
-  // === START: NUEVO DIV DESLIZANTE CON BENEFICIOS ===
-  const renderBenefitsModal = () => {
-    if (!showBenefitsModal || !selectedTier) return null;
-
-    const benefits =
-      selectedTier === "premium"
-        ? [
-            "Recibes Boost ilimitados según tu plan",
-            "Puedes dar tips ilimitados",
-            "1 WLD por cada referido registrado",
-            "Acceso a contenido exclusivo"
-          ]
-        : [
-            "Todos los beneficios de Premium",
-            "Mayor límite de Boost y Tips",
-            "Acceso a contenido Premium+ exclusivo",
-            "Bonificaciones adicionales según engagement"
-          ];
-
-    return (
-      <div className="fixed bottom-0 left-0 w-full bg-gray-900/95 backdrop-blur-md p-4 rounded-t-3xl shadow-xl animate-slide-up z-50">
-        <h3 className="text-xl font-bold text-white mb-2">{selectedTier === "premium" ? "Premium" : "Premium+"}</h3>
-        <ul className="list-disc list-inside text-white mb-4 space-y-1">
-          {benefits.map((b, i) => (
-            <li key={i}>{b}</li>
-          ))}
-        </ul>
-        <div className="flex gap-3">
-          <button
-            onClick={handleUpgradeConfirm}
-            disabled={loadingUpgrade}
-            className="flex-1 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-2xl shadow-md"
-          >
-            {loadingUpgrade ? "Procesando..." : "Confirmar"}
-          </button>
-          <button
-            onClick={() => { setShowBenefitsModal(false); setSelectedTier(null); }}
-            className="flex-1 py-3 bg-gray-700 hover:bg-gray-600 text-white font-bold rounded-2xl shadow-md"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
-    );
+  const cancelUpgrade = () => {
+    setShowSlideModal(false);
+    setSelectedTier(null);
   };
-  // === END: DIV DESLIZANTE ===
 
-  // === START: MODIFICACION renderUpgradeBanner ===
+  // Banner de upgrade
   const renderUpgradeBanner = () => {
     if (userTier === "premium+") return null;
     return (
@@ -117,23 +76,64 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
         ) : (
           <div className="flex gap-4 mt-2">
             <button
-              onClick={() => { setSelectedTier("premium"); setShowBenefitsModal(true); }}
+              onClick={() => handleUpgrade("premium")}
+              disabled={loadingUpgrade}
               className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
             >
               Premium
             </button>
             <button
-              onClick={() => { setSelectedTier("premium+"); setShowBenefitsModal(true); }}
+              onClick={() => handleUpgrade("premium+")}
+              disabled={loadingUpgrade}
               className="flex-1 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
             >
               Premium+
             </button>
           </div>
         )}
+
+        {/* Slide Modal */}
+        {showSlideModal && selectedTier && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
+            <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6 animate-slide-up">
+              <h2 className="text-xl font-bold text-white mb-4">Beneficios de {selectedTier}</h2>
+              <ul className="text-gray-200 mb-6 list-disc list-inside space-y-2">
+                {selectedTier === "premium" && (
+                  <>
+                    <li>Puedes recibir tips ilimitados</li>
+                    <li>Boost 5 veces por semana</li>
+                    <li>1 WLD por cada referido que se registre</li>
+                  </>
+                )}
+                {selectedTier === "premium+" && (
+                  <>
+                    <li>Puedes recibir tips ilimitados</li>
+                    <li>Boost ilimitado</li>
+                    <li>Bonificación extra de engagement</li>
+                  </>
+                )}
+              </ul>
+              <div className="flex gap-4">
+                <button
+                  onClick={cancelUpgrade}
+                  className="flex-1 py-3 bg-gray-700 text-white rounded-2xl font-bold"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmUpgrade}
+                  disabled={loadingUpgrade}
+                  className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
+                >
+                  {loadingUpgrade ? "Procesando..." : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
-  // === END: MODIFICACION renderUpgradeBanner ===
 
   if (loading) {
     return (
@@ -169,7 +169,6 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       {posts.map((post) => (
         <PostCard key={post.id} post={post} />
       ))}
-      {renderBenefitsModal()}
     </div>
   );
 };
