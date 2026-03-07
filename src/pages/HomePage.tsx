@@ -1,5 +1,3 @@
-Dame el Postcard corregido completo,
-Acá tienes el HomePage para modificar .orden....
 import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import PostCard from "../components/PostCard.tsx";
