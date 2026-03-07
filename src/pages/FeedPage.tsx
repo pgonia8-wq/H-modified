@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PostCard from '../components/PostCard';
+import { MiniKit } from '@worldcoin/minikit-js';  // ← agregamos MiniKit para pay
 
 interface Post {
   id: string;
@@ -16,7 +17,7 @@ interface FeedPageProps {
   loading?: boolean;
   error?: string | null;
   currentUserId: string | null;
-  userTier: "free" | "premium" | "premium+";
+  userTier: "free" | "basic" | "premium" | "premium+";
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserId, userTier }) => {
@@ -24,36 +25,23 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
   const [selectedTier, setSelectedTier] = useState<"premium" | "premium+" | null>(null);
   const [showSlideModal, setShowSlideModal] = useState(false);
   const [loadingUpgrade, setLoadingUpgrade] = useState(false);
+  const [upgradeError, setUpgradeError] = useState<string | null>(null);
+  const [price, setPrice] = useState<number | null>(null);  // ← para mostrar precio dinámico
 
-  const handleUpgrade = async (tier: "premium" | "premium+") => {
+  useEffect(() => {
+    if (selectedTier) {
+      const fetchPrice = async () => {
+        const res = await fetch(`/api/upgrade?getPrice=true&tier=${selectedTier}`);
+        const data = await res.json();
+        setPrice(data.price);
+      };
+      fetchPrice();
+    }
+  }, [selectedTier]);
+
+  const handleUpgrade = (tier: "premium" | "premium+") => {
     setSelectedTier(tier);
     setShowSlideModal(true);
-  };
-
-  const confirmUpgrade = async () => {
-    if (!currentUserId || !selectedTier) return alert("No se encontró tu ID o tier seleccionado.");
-
-    setLoadingUpgrade(true);
-    try {
-      const transactionId = crypto.randomUUID();
-      const res = await fetch("/api/upgrade.mjs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
-      });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
-
-      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${data.price} WLD`);
-      setShowUpgradeOptions(false);
-      setShowSlideModal(false);
-      setSelectedTier(null);
-    } catch (err: any) {
-      console.error("Upgrade error:", err);
-      alert("Error al procesar upgrade: " + (err.message || "Intenta de nuevo"));
-    } finally {
-      setLoadingUpgrade(false);
-    }
   };
 
   const cancelUpgrade = () => {
@@ -61,36 +49,101 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
     setSelectedTier(null);
   };
 
-     // Banner de upgrade
-  const renderUpgradeBanner = () => {
-  if (userTier === "premium+") return null;
+  const confirmUpgrade = async () => {
+    if (!currentUserId || !selectedTier || !price) return;
+
+    setLoadingUpgrade(true);
+    setUpgradeError(null);
+    try {
+      // Pago real con MiniKit
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: price,
+        currency: 'WLD',
+        recipient: '0x...tu_wallet_app',  // ← reemplaza con wallet de la app para cobrar WLD real
+      });
+
+      if (payRes?.status !== "success") {
+        throw new Error("Pago cancelado o fallido");
+      }
+
+      const transactionId = payRes.transactionId;  // ← tx id real de MiniKit
+
+      const res = await fetch("/api/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, tier: selectedTier, transactionId }),
+      });
+
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || "Error al procesar upgrade");
+
+      alert(`¡Upgrade a ${selectedTier} exitoso! Precio: ${data.price} WLD`);
+      setShowUpgradeOptions(false);
+      setShowSlideModal(false);
+      setSelectedTier(null);
+      // Actualiza userTier local (o refresca app)
+      setUserTier(selectedTier);
+    } catch (err: any) {
+      console.error(err);
+      setUpgradeError(err.message);
+    } finally {
+      setLoadingUpgrade(false);
+    }
+  };
+
   return (
-    <div className="w-full max-w-2xl px-4">
-      {!showUpgradeOptions ? (
-        <button
-          onClick={() => setShowUpgradeOptions(true)}
-          className="w-full py-3 bg-yellow-500 hover:bg-yellow-400 text-black font-bold rounded-2xl shadow-md mt-2"
-        >
-          Upgrade
-        </button>
+    <div className="flex flex-col p-4">
+      <div className="mb-4">
+        {showUpgradeOptions && (
+          <div className="space-y-4">
+            <button
+              onClick={() => handleUpgrade("premium")}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 to-purple-500 text-white font-bold"
+            >
+              Premium - 10 WLD
+            </button>
+            <button
+              onClick={() => handleUpgrade("premium+")}
+              className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold"
+            >
+              Premium+ - 15 WLD
+            </button>
+          </div>
+        )}
+      </div>
+
+      {loading ? (
+        // Skeletons
+        <div className="space-y-5">
+          {Array.from({ length: PAGE_SIZE }).map((_, i) => (
+            <div key={i} className="bg-gray-900/60 backdrop-blur-sm rounded-2xl p-4 animate-pulse space-y-4 border border-white/10">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-gray-700" />
+                <div className="space-y-2 flex-1">
+                  <div className="h-4 bg-gray-700 rounded w-3/4" />
+                  <div className="h-3 bg-gray-700 rounded w-1/2" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-700 rounded w-full" />
+                <div className="h-4 bg-gray-700 rounded w-5/6" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : error ? (
+        <p className="text-red-500 text-center py-10 px-2">{error}</p>
+      ) : posts.length === 0 ? (
+        <p className="text-gray-500 text-center py-10 px-2">No hay posts todavía.</p>
       ) : (
-        <div className="flex gap-4 mt-2">
-          <button
-            onClick={() => handleUpgrade("premium")}
-            disabled={loadingUpgrade}
-            className="flex-1 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
-          >
-            Premium
-          </button>
-          <button
-            onClick={() => handleUpgrade("premium+")}
-            disabled={loadingUpgrade}
-            className="flex-1 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-500 hover:to-teal-500 text-white font-bold rounded-2xl shadow-md flex items-center justify-center"
-          >
-            Premium+
-          </button>
+        <div className="space-y-5">
+          {posts.map((post) => (
+            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+          ))}
         </div>
       )}
+
+      {upgradeError && <p className="text-red-500 text-center py-4">{upgradeError}</p>}
 
       {/* Slide Modal */}
       {showSlideModal && selectedTier && (
@@ -113,6 +166,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
                 </>
               )}
             </ul>
+            <p className="text-white text-center mb-4">Precio: {price} WLD</p>
             <div className="flex gap-4">
               <button
                 onClick={cancelUpgrade}
@@ -133,7 +187,6 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
       )}
     </div>
   );
-};             
-                  
+};
 
 export default FeedPage;
