@@ -1,6 +1,8 @@
+// src/components/ProfileModal.tsx
 import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
+import { useAvatar } from "../lib/useAvatar";
 
 interface ProfileModalProps {
   currentUserId: string | null;
@@ -56,48 +58,44 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { theme, setTheme } = useContext(ThemeContext);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Hook para manejar avatar desde Supabase Storage
+  const avatar = useAvatar(profile.avatar_url, currentUserId || "guest");
+
   const handleUpgrade = async (tier: "premium" | "premium+") => {
-  if (!currentUserId) return;
-
-  try {
-    const res = await fetch("/api/upgrade", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: currentUserId,
-        tier,
-        transactionId: "tx-test-001", // reemplaza con el real cuando tengas la transacción WLD
-      }),
-    });
-
-    const data = await res.json();
-
-    console.log("Upgrade response:", data);
-
-    if (data.success) {
-      showToast(`Upgrade exitoso: ${tier}`, "success");
-      // Opcional: actualizar perfil en UI
-      setProfile(prev => ({ ...prev, tier }));
-    } else {
-      showToast(`Error en upgrade: ${data.error}`, "error");
+    if (!currentUserId) return;
+    try {
+      const res = await fetch("/api/upgrade", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: currentUserId,
+          tier,
+          transactionId: "tx-test-001",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast(`Upgrade exitoso: ${tier}`, "success");
+        setProfile((prev) => ({ ...prev, tier }));
+      } else {
+        showToast(`Error en upgrade: ${data.error}`, "error");
+      }
+    } catch (err: any) {
+      console.error("Error conectando con API upgrade:", err);
+      showToast("No se pudo conectar con la API de upgrade", "error");
     }
-  } catch (err: any) {
-    console.error("Error conectando con API upgrade:", err);
-    showToast("No se pudo conectar con la API de upgrade", "error");
-  }
-};
+  };
 
   useEffect(() => {
     const loadOrCreateProfile = async () => {
       setLoading(true);
       setError(null);
-
       if (!currentUserId) {
         setProfile({ ...emptyProfile, id: "guest", username: "invitado" });
         setLoading(false);
         return;
       }
-
       try {
         const { data, error: fetchError } = await supabase
           .from("profiles")
@@ -128,13 +126,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             followers_count: 0,
             following_count: 0,
           };
-
-          const { error: upsertError } = await supabase
-            .from("profiles")
-            .upsert(newProfile);
-
+          const { error: upsertError } = await supabase.from("profiles").upsert(newProfile);
           if (upsertError) throw upsertError;
-
           setProfile(newProfile);
         }
       } catch (err: any) {
@@ -144,7 +137,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         setLoading(false);
       }
     };
-
     loadOrCreateProfile();
   }, [currentUserId]);
 
@@ -156,22 +148,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleSave = async () => {
     if (!currentUserId) return;
     setSaving(true);
-
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .upsert({
-          id: currentUserId,
-          name: profile.name,
-          bio: profile.bio,
-          birthdate: profile.birthdate,
-          city: profile.city,
-          country: profile.country,
-          avatar_url: profile.avatar_url,
-        });
-
+      const { error } = await supabase.from("profiles").upsert({
+        id: currentUserId,
+        name: profile.name,
+        bio: profile.bio,
+        birthdate: profile.birthdate,
+        city: profile.city,
+        country: profile.country,
+        avatar_url: profile.avatar_url,
+      });
       if (error) throw error;
-
       showToast("Perfil guardado correctamente ✅");
       onClose();
     } catch (err: any) {
@@ -184,9 +171,8 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !currentUserId) return;
-
     if (!file.type.startsWith("image/")) {
-      showToast("Solo se permiten imágenes (JPG, PNG, etc.)", "error");
+      showToast("Solo se permiten imágenes", "error");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -196,22 +182,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
     setUploadingAvatar(true);
     const timestamp = Date.now();
-
-    
     const fileName = `${currentUserId}/avatar-${timestamp}`;
-
     try {
-      const { error: uploadError } = await supabase.storage
-        .from("avatars")
-        .upload(fileName, file, { upsert: true });
-
+      const { error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(fileName);
-
-    
+      const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName);
       const newAvatarUrl = `${urlData.publicUrl}?t=${timestamp}`;
 
       const { error: updateError } = await supabase
@@ -220,7 +196,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .eq("id", currentUserId);
 
       if (updateError) throw updateError;
-
       setProfile((prev) => ({ ...prev, avatar_url: newAvatarUrl }));
       showToast("Avatar actualizado correctamente");
     } catch (err: any) {
@@ -231,20 +206,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     }
   };
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark");
-  };
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   const joinedDate = profile.created_at
-    ? new Date(profile.created_at).toLocaleDateString("es-MX", {
-        month: "long",
-        year: "numeric",
-      })
+    ? new Date(profile.created_at).toLocaleDateString("es-MX", { month: "long", year: "numeric" })
     : "—";
-
   const isPremium = profile.tier === "premium" || profile.tier === "premium+";
 
-  // Clases condicionales por tema
+  // Temas
   const modalBg = theme === "dark" ? "bg-gray-900 text-white" : "bg-white text-black";
   const headerGradient = theme === "dark" ? "from-indigo-600 to-purple-600" : "from-indigo-500 to-purple-500";
   const inputBg = theme === "dark" ? "bg-gray-800" : "bg-gray-200 text-black";
@@ -268,9 +237,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
         <div className="bg-gray-800 p-8 rounded-2xl text-center max-w-sm">
           <p className="text-red-400 mb-4">{error}</p>
-          <button onClick={onClose} className="px-6 py-3 bg-purple-600 rounded-xl text-white">
-            Cerrar
-          </button>
+          <button onClick={onClose} className="px-6 py-3 bg-purple-600 rounded-xl text-white">Cerrar</button>
         </div>
       </div>
     );
@@ -280,204 +247,39 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     <div className={`fixed inset-0 bg-black/80 flex flex-col z-50 ${modalBg}`}>
       {/* Toast */}
       {toast && (
-        <div
-          className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 animate-fade-in-out ${
-            toast.type === "success" ? "bg-green-600" : "bg-red-600"
-          } text-white`}
-        >
+        <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-xl shadow-lg z-50 animate-fade-in-out ${toast.type === "success" ? "bg-green-600" : "bg-red-600"} text-white`}>
           {toast.message}
         </div>
       )}
 
       {/* Header */}
       <div className={`relative bg-gradient-to-r ${headerGradient} h-32 flex-shrink-0`}>
-        <button
-          onClick={onClose}
-          aria-label="Cerrar perfil"
-          className="absolute top-4 right-16 text-white text-3xl font-light hover:text-gray-200 z-10"
-        >
-          ×
-        </button>
-
-        <button
-          onClick={toggleTheme}
-          aria-label="Alternar tema"
-          className="absolute top-4 right-4 text-white text-2xl hover:text-yellow-300 transition-colors z-10"
-        >
-          {theme === "dark" ? "☀️" : "🌙"}
-        </button>
+        <button onClick={onClose} aria-label="Cerrar perfil" className="absolute top-4 right-16 text-white text-3xl font-light hover:text-gray-200 z-10">×</button>
+        <button onClick={toggleTheme} aria-label="Alternar tema" className="absolute top-4 right-4 text-white text-2xl hover:text-yellow-300 transition-colors z-10">{theme === "dark" ? "☀️" : "🌙"}</button>
       </div>
 
-      {/* Avatar fijo centrado en la parte superior */}
-<div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-28 h-28 z-20">
-  <img
-    src={profile.avatar_url || "/default-avatar.png"}
-    alt="Tu avatar"
-    className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg"
-    onError={(e) => ((e.target as HTMLImageElement).src = "/default-avatar.png")}
-  />
+      {/* Avatar */}
+      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 w-28 h-28 z-20">
+        <img src={avatar || "/default-avatar.png"} alt="Tu avatar" className="w-28 h-28 rounded-full border-4 border-white object-cover shadow-lg" />
+        <div onClick={() => avatarInputRef.current?.click()} className="absolute bottom-0 right-0 bg-purple-600 rounded-full p-1.5 cursor-pointer hover:bg-purple-700 shadow-lg flex items-center justify-center" title="Cambiar avatar">✏️</div>
+        <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} className="hidden" disabled={uploadingAvatar} />
+      </div>
 
-  {/* Lápiz para cambiar avatar */}
-  <div
-    onClick={() => avatarInputRef.current?.click()}
-    className="absolute bottom-0 right-0 bg-purple-600 rounded-full p-1.5 cursor-pointer hover:bg-purple-700 shadow-lg flex items-center justify-center"
-    title="Cambiar avatar"
-  >
-    ✏️
-  </div>
-
-  <input
-    ref={avatarInputRef}
-    type="file"
-    accept="image/*"
-    onChange={handleAvatarChange}
-    className="hidden"
-    disabled={uploadingAvatar}
-  />
-</div>
       {/* Contenido principal */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="pt-14 px-6 pb-6">
-          <input
-            value={profile.name}
-            onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-            className={`bg-transparent text-2xl font-bold w-full focus:outline-none ${textGray}`}
-            placeholder="Tu nombre"
-            maxLength={50}
-          />
-          <p className={textGray + " mt-1"}>@{profile.username || "sin_username"}</p>
+      <div className="flex-1 overflow-y-auto pt-14 px-6 pb-6">
+        <input value={profile.name} onChange={(e) => setProfile({ ...profile, name: e.target.value })} className={`bg-transparent text-2xl font-bold w-full focus:outline-none ${textGray}`} placeholder="Tu nombre" maxLength={50} />
+        <p className={textGray + " mt-1"}>@{profile.username || "sin_username"}</p>
+        {isPremium && <div className="inline-block mt-2 px-4 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-xs font-bold rounded-full">PREMIUM</div>}
 
-          {isPremium && (
-            <div className="inline-block mt-2 px-4 py-1 bg-gradient-to-r from-yellow-400 to-amber-500 text-black text-xs font-bold rounded-full">
-              PREMIUM
-            </div>
-          )}
-
-          <textarea
-            value={profile.bio}
-            onChange={(e) => {
-              const val = e.target.value;
-              setProfile({ ...profile, bio: val });
-              setBioLength(val.length);
-            }}
-            placeholder="Escribe tu bio..."
-            maxLength={160}
-            className={`mt-4 w-full ${inputBg} text-white p-4 rounded-2xl resize-none h-28 focus:outline-none focus:ring-2 focus:ring-purple-500`}
-          />
-          <div className={`text-right text-xs ${textGray} mt-1`}>{bioLength}/160</div>
-
-          <div className="flex gap-6 mt-6 text-sm">
-            <div>
-              <span className="font-bold text-white">{profile.following_count}</span>{" "}
-              <span className={textGray}>Siguiendo</span>
-            </div>
-            <div>
-              <span className="font-bold text-white">{profile.followers_count}</span>{" "}
-              <span className={textGray}>Seguidores</span>
-            </div>
-            <div className={textGray}>
-              Se unió en <span className="text-white">{joinedDate}</span>
-            </div>
-          </div>
-
-          <div className={`mt-5 flex flex-wrap gap-4 text-sm ${textGray}`}>
-            {(profile.city || profile.country) && (
-              <div>📍 {profile.city}{profile.country ? `, ${profile.country}` : ""}</div>
-            )}
-            {profile.birthdate && (
-              <div>🎂 {new Date(profile.birthdate).toLocaleDateString("es-MX")}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div className={`flex border-b ${borderColor} sticky top-0 ${modalBg} z-10`}>
-          {(["posts", "responses", "likes"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-4 text-sm font-medium transition-colors ${
-                activeTab === tab ? tabActive : tabInactive
-              }`}
-            >
-              {tab === "posts" ? "Posts" : tab === "responses" ? "Respuestas" : "Likes"}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-6">
-          {activeTab === "posts" && (
-            <p className={`text-center py-10 ${textGray}`}>Tus posts aparecerán aquí</p>
-          )}
-          {activeTab === "responses" && (
-            <p className={`text-center py-10 ${textGray}`}>Tus respuestas aparecerán aquí</p>
-          )}
-          {activeTab === "likes" && (
-            <p className={`text-center py-10 ${textGray}`}>Posts que te gustaron aparecerán aquí</p>
-          )}
-        </div>
-
-        {/* Edición extra */}
-        <div className={`p-6 border-t ${borderColor} space-y-5`}>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className={`block text-xs ${textGray} mb-1`}>Nacimiento</label>
-              <input
-                type="date"
-                value={profile.birthdate}
-                onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
-                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
-              />
-            </div>
-            <div>
-              <label className={`block text-xs ${textGray} mb-1`}>Ciudad</label>
-              <input
-                type="text"
-                placeholder="Ciudad"
-                value={profile.city}
-                onChange={(e) => setProfile({ ...profile, city: e.target.value })}
-                className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className={`block text-xs ${textGray} mb-1`}>País</label>
-            <input
-              type="text"
-              placeholder="País"
-              value={profile.country}
-              onChange={(e) => setProfile({ ...profile, country: e.target.value })}
-              className={`w-full ${inputBg} p-3 rounded-xl focus:outline-none`}
-            />
-          </div>
-        </div>
+        <textarea value={profile.bio} onChange={(e) => { const val = e.target.value; setProfile({ ...profile, bio: val }); setBioLength(val.length); }} placeholder="Escribe tu bio..." maxLength={160} className={`mt-4 w-full ${inputBg} text-white p-4 rounded-2xl resize-none h-28 focus:outline-none focus:ring-2 focus:ring-purple-500`} />
+        <div className={`text-right text-xs ${textGray} mt-1`}>{bioLength}/160</div>
       </div>
 
-      {/* Botones inferiores */}
+      {/* Botones */}
       <div className={`border-t ${borderColor} p-4 flex gap-3 flex-shrink-0`}>
-        {showUpgradeButton && (
-  <button
-    onClick={() => handleUpgrade("premium")} // O "premium+" según quieras
-    className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-medium hover:opacity-90 transition"
-  >
-    Upgrade
-  </button>
-)}
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className={`flex-1 py-3.5 ${buttonGreen} rounded-2xl font-medium disabled:opacity-60 transition`}
-        >
-          {saving ? "Guardando..." : "Guardar cambios"}
-        </button>
-
-        <button
-          onClick={() => alert("Reportado (función pendiente)")}
-          className={`px-6 py-3.5 ${buttonRed} rounded-2xl text-sm font-medium transition`}
-        >
-          Reportar
-        </button>
+        {showUpgradeButton && <button onClick={() => handleUpgrade("premium")} className="flex-1 py-3.5 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl font-medium hover:opacity-90 transition">Upgrade</button>}
+        <button onClick={handleSave} disabled={saving} className={`flex-1 py-3.5 ${buttonGreen} rounded-2xl font-medium disabled:opacity-60 transition`}>{saving ? "Guardando..." : "Guardar cambios"}</button>
+        <button onClick={() => alert("Reportado (función pendiente)")} className={`px-6 py-3.5 ${buttonRed} rounded-2xl text-sm font-medium transition`}>Reportar</button>
       </div>
     </div>
   );
