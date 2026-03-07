@@ -7,6 +7,8 @@ import ProfileModal from "../components/ProfileModal";
 import { useUserBalance } from "../lib/useUserBalance";
 import FeedPage from './FeedPage';  // ruta correcta
 
+const PAGE_SIZE = 5;  // ← Movido aquí (fuera del componente) para solucionar el ReferenceError
+
 interface Post {
   id: string;
   content?: string;
@@ -25,8 +27,6 @@ interface Post {
   is_exclusive?: boolean;
   [key: string]: any;
 }
-
-const PAGE_SIZE = 5;  // ← Línea agregada aquí para solucionar el ReferenceError
 
 const HomePage = ({ userId }: { userId: string | null }) => {
   const [posts, setPosts] = useState<Post[]>([]);
