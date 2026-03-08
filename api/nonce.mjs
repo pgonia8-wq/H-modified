@@ -1,6 +1,8 @@
 import crypto from 'node:crypto';
 
 export default async function handler(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method not allowed" });
   }
@@ -8,10 +10,9 @@ export default async function handler(req, res) {
   try {
     const nonce = crypto.randomBytes(32).toString('hex');
     console.log("[NONCE] Generado:", nonce);
-
     return res.status(200).json({ nonce });
   } catch (err) {
-    console.error("[NONCE] Error generando nonce:", err);
-    return res.status(500).json({ error: "Error interno al generar nonce" });
+    console.error("[NONCE] Error:", err);
+    return res.status(500).json({ error: "Error generando nonce" });
   }
 }
