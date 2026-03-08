@@ -35,7 +35,7 @@ const App = () => {
       if (installed) {
         const w = MiniKit.walletAddress;
         setWallet(w);
-        console.log("[APP] Wallet detectada:", w || "undefined – espera permisos");
+        console.log("[APP] Wallet detectada:", w || "undefined – permisos pendientes");
       } else {
         console.warn("[APP] MiniKit no instalado aún");
       }
@@ -45,16 +45,16 @@ const App = () => {
     }
   }, []);
 
-  // Fuerza verify si no hay ID
-  useEffect(() => {
-    if (!userId && !verifying) {
-      console.log("[APP DEBUG] No hay userId → forzando verify");
-      verifyUser();
-    }
-  }, [userId, verifying]);
+  // NO forzamos verify automáticamente si ya hay ID
+  // Solo permitimos verify manual si el usuario lo necesita
 
   const verifyUser = async () => {
     if (verifying) return;
+    if (userId) {
+      console.log("[APP] Ya hay userId guardado, no es necesario verificar de nuevo");
+      return;
+    }
+
     setVerifying(true);
     setError(null);
     console.log("[APP] Iniciando verificación...");
