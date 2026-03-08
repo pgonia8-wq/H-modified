@@ -9,65 +9,94 @@ const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Carga ID de localStorage al inicio
+  useEffect(() => {
+    const storedId = localStorage.getItem("userId");
+    if (storedId) {
+      setUserId(storedId);
+      setVerified(true);
+      console.log("[APP] ID cargado de localStorage:", storedId);
+    } else {
+      console.log("[APP] No hay ID en localStorage → forzando verify");
+    }
+  }, []);
+
+  // Inicializa MiniKit
   useEffect(() => {
     try {
-      // Inicializamos MiniKit con tu App ID
       MiniKit.install({
-        appId: "app_6a98c88249208506dcd4e04b529111fc"
+        appId: "app_6a98c88249208506dcd4e04b529111fc",
       });
 
       if (MiniKit.isInstalled()) {
-        setWallet(MiniKit.walletAddress);
+        const w = MiniKit.walletAddress;
+        setWallet(w);
+        console.log("[APP] MiniKit instalado correctamente. Wallet:", w);
       } else {
         console.warn("[APP] MiniKit no instalado aún");
       }
     } catch (err) {
-      console.error("MiniKit install error:", err);
+      console.error("[APP] MiniKit install error:", err);
       setError("Error al instalar MiniKit");
     }
   }, []);
 
+  // Fuerza verify si no hay ID (temporal para depurar)
+  useEffect(() => {
+    if (!userId && !verifying) {
+      console.log("[APP DEBUG] No hay userId → forzando verify");
+      verifyUser();
+    }
+  }, [userId, verifying]);
+
   const verifyUser = async () => {
-    if (!wallet || verifying) return;
+    if (verifying) return;
     setVerifying(true);
     setError(null);
+    console.log("[APP] Iniciando verificación...");
 
     try {
+      if (!MiniKit.isInstalled()) {
+        throw new Error("MiniKit no instalado");
+      }
+
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
-        signal: wallet,
         verification_level: VerificationLevel.Device,
       });
 
-      console.log("🔥 Payload recibido:", verifyRes);
+      console.log("[APP] Verify response:", verifyRes);
 
       const proof = verifyRes?.finalPayload;
-      if (!proof) throw new Error("No se recibió proof");
+      if (!proof || proof.status !== "success") {
+        throw new Error("Verificación fallida o cancelada");
+      }
 
-      // Enviamos al backend
       const res = await fetch("/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          payload: proof,
-          walletAddress: MiniKit.walletAddress,
-          minikitData: MiniKit.data,
-        }),
+        body: JSON.stringify({ payload: proof }),
       });
 
-      const backend = await res.json();
-      console.log("✅ Backend response:", backend);
-
-      if (backend.success) {
-        localStorage.setItem("userId", proof.nullifier_hash);
-        setUserId(proof.nullifier_hash);
-        setVerified(true);
-      } else {
-        setError("Backend rechazó la prueba");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Backend error: ${res.status} - ${text}`);
       }
 
+      const backend = await res.json();
+      console.log("[APP] Backend response:", backend);
+
+      if (backend.success) {
+        const id = proof.nullifier_hash;
+        localStorage.setItem("userId", id);
+        setUserId(id);
+        setVerified(true);
+        console.log("[APP] Verificación exitosa, userId guardado:", id);
+      } else {
+        setError("Backend rechazó la prueba: " + (backend.error || "Desconocido"));
+      }
     } catch (err: any) {
-      console.error("Verify error:", err);
+      console.error("[APP] Verify error:", err);
       setError(err.message || "Error durante verificación");
     } finally {
       setVerifying(false);
