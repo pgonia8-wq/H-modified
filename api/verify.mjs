@@ -1,6 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Supabase con Service Role Key (nunca exponer en frontend)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -25,7 +24,7 @@ export default async function handler(req, res) {
   const nullifierHash = payload.nullifier_hash;
   console.log("[BACKEND] nullifier_hash recibido:", nullifierHash);
 
-  // Verificar en Worldcoin API oficial
+  // Verificar en Worldcoin API (agregamos action requerido)
   let verifyData;
   try {
     const verifyResponse = await fetch(
@@ -34,6 +33,7 @@ export default async function handler(req, res) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "verify-user",  // ← CAMBIO CLAVE: campo requerido agregado
           merkle_root: payload.merkle_root,
           proof: payload.proof,
           nullifier_hash: nullifierHash,
@@ -47,7 +47,7 @@ export default async function handler(req, res) {
 
     if (!verifyResponse.ok || !verifyData.success) {
       console.error("[BACKEND] Worldcoin rechazó:", verifyData);
-      return res.status(400).json({ success: false, error: verifyData.detail || "Verificación fallida en Worldcoin" });
+      return res.status(verifyResponse.status || 400).json({ success: false, error: verifyData.detail || "Verificación fallida en Worldcoin" });
     }
   } catch (err) {
     console.error("[BACKEND] Error al verificar con Worldcoin:", err);
@@ -61,11 +61,9 @@ export default async function handler(req, res) {
       .upsert(
         {
           id: nullifierHash,
-          tier: "free", // default, luego upgrade lo sube
+          tier: "free",
           verified: true,
           updated_at: new Date().toISOString(),
-          // Puedes agregar wallet si lo tienes en payload
-          wallet_address: payload.walletAddress || null,
         },
         { onConflict: 'id' }
       );
@@ -77,32 +75,9 @@ export default async function handler(req, res) {
 
     console.log("[BACKEND] Perfil creado/actualizado:", nullifierHash);
   } catch (err) {
-    console.error("[BACKEND] Error Supabase profiles:", err);
+    console.error("[BACKEND] Supabase profiles error:", err);
     return res.status(500).json({ success: false, error: "Error al guardar perfil" });
   }
 
-  // Guardar proof en tabla separada (auditoría)
-  try {
-    const { error: proofError } = await supabase
-      .from("world_id_proofs")
-      .insert({
-        nullifier_hash: nullifierHash,
-        merkle_root: payload.merkle_root,
-        proof: payload.proof,
-        verification_level: payload.verification_level,
-        backend_response: JSON.stringify(verifyData),
-        created_at: new Date().toISOString(),
-      });
-
-    if (proofError) {
-      console.error("[BACKEND] Error insert world_id_proofs:", proofError);
-      // No fallamos el request por esto, es opcional
-    } else {
-      console.log("[BACKEND] Proof guardado en world_id_proofs");
-    }
-  } catch (err) {
-    console.error("[BACKEND] Error Supabase world_id_proofs:", err);
-  }
-
   return res.status(200).json({ success: true, nullifier_hash: nullifierHash });
-}
+        }
