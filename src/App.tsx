@@ -35,7 +35,7 @@ const App = () => {
       if (installed) {
         const w = MiniKit.walletAddress;
         setWallet(w);
-        console.log("[APP] Wallet detectada:", w || "undefined – espera que World App conceda permisos");
+        console.log("[APP] Wallet detectada:", w || "undefined – iniciando walletAuth");
       } else {
         console.warn("[APP] MiniKit no instalado aún");
       }
@@ -45,11 +45,45 @@ const App = () => {
     }
   }, []);
 
-  // NO forzamos verify automáticamente si ya hay ID
+  // Carga walletAddress con walletAuth si está verificado y wallet undefined
+  useEffect(() => {
+    const loadWallet = async () => {
+      if (verified && !wallet && !verifying) {
+        console.log("[APP] Wallet undefined → iniciando walletAuth...");
+        try {
+          // Pide nonce al backend (crea ruta /api/nonce si no existe)
+          const nonceRes = await fetch('/api/nonce');
+          const { nonce } = await nonceRes.json();
+
+          const { finalPayload } = await MiniKit.commandsAsync.walletAuth({
+            nonce: nonce,
+            requestId: '0',
+            expirationTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+            notBefore: new Date(Date.now() - 24 * 60 * 60 * 1000),
+            statement: 'Autenticar wallet para H humans',
+          });
+
+          if (finalPayload.status === 'success') {
+            const w = MiniKit.walletAddress;
+            setWallet(w);
+            console.log("[APP] Wallet cargada con walletAuth:", w);
+          } else {
+            throw new Error("walletAuth falló");
+          }
+        } catch (err) {
+          console.error("[APP] Error en walletAuth:", err);
+          setError("No se pudo autenticar la wallet");
+        }
+      }
+    };
+
+    loadWallet();
+  }, [verified, wallet, verifying]);
+
   const verifyUser = async () => {
     if (verifying) return;
     if (userId) {
-      console.log("[APP] Ya hay userId guardado, no es necesario verificar de nuevo");
+      console.log("[APP] Ya hay userId, no verificamos de nuevo");
       return;
     }
 
@@ -58,9 +92,7 @@ const App = () => {
     console.log("[APP] Iniciando verificación...");
 
     try {
-      if (!MiniKit.isInstalled()) {
-        throw new Error("MiniKit no instalado");
-      }
+      if (!MiniKit.isInstalled()) throw new Error("MiniKit no instalado");
 
       const verifyRes = await MiniKit.commandsAsync.verify({
         action: "verify-user",
