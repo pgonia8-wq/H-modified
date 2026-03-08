@@ -11,6 +11,8 @@ export default async function handler(req, res) {
   const { action, max_age } = body;
   const userId = body.nullifier_hash;
 
+  console.log("[BACKEND] userId extraído del body:", userId);
+
   if (!action) {
     console.log("[BACKEND] Falta action");
     return res.status(400).json({
@@ -21,6 +23,7 @@ export default async function handler(req, res) {
 
   // Verificación real del proof usando la API v2 de World
   // https://developer.worldcoin.org/api/v2/verify/{app_id}
+  console.log("[BACKEND] Llamando a World API v2 verify...");
 
   const verifyResponse = await fetch(
     "https://developer.worldcoin.org/api/v2/verify/app_6a98c88249208506dcd4e04b529111fc",
@@ -40,7 +43,6 @@ export default async function handler(req, res) {
   );
 
   const verifyData = await verifyResponse.json();
-
   console.log("[BACKEND] Resultado verificación World:", verifyData);
 
   if (!verifyData.success) {
@@ -56,6 +58,8 @@ export default async function handler(req, res) {
 
   // ── Guardar verified: true en Supabase ──
   if (userId) {
+    console.log("[BACKEND] Guardando usuario en Supabase:", userId);
+
     // 1️⃣ Crear o actualizar el perfil si no existía
     const { error: upsertError } = await supabase
       .from("profiles")
@@ -82,5 +86,6 @@ export default async function handler(req, res) {
     console.warn("[BACKEND] No se recibió userId en el body → no se pudo guardar verified");
   }
 
-  return res.status(200).json({ success: true });
-        }
+  console.log("[BACKEND] Enviando respuesta al frontend con userId:", userId);
+  return res.status(200).json({ success: true, userId });
+  }
