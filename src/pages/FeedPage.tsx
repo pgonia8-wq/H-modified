@@ -31,7 +31,7 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
   const [upgradeError, setUpgradeError] = useState<string | null>(null);
   const [price, setPrice] = useState<number>(0);
   const [slotsLeft, setSlotsLeft] = useState<number>(0);
-  const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);  // ← nuevo estado para alerta fondos insuficientes
+  const [showInsufficientFunds, setShowInsufficientFunds] = useState(false);
 
   useEffect(() => {
     if (selectedTier) {
@@ -73,14 +73,18 @@ const FeedPage: React.FC<FeedPageProps> = ({ posts, loading, error, currentUserI
     setLoadingUpgrade(true);
     setUpgradeError(null);
     setShowInsufficientFunds(false);
-    console.log("[UPGRADE] Iniciando upgrade para:", selectedTier, "precio:", price, "userId:", currentUserId);
+    console.log("[UPGRADE] Iniciando pago para tier:", selectedTier, "precio:", price, "userId:", currentUserId);
 
     try {
       if (!MiniKit.isInstalled()) {
         throw new Error("MiniKit no instalado o World App no detectada");
       }
 
-      // Pago real con MiniKit (cobra WLD)
+      if (!MiniKit.walletAddress) {
+        throw new Error("Wallet no detectada. Asegúrate de conceder permisos.");
+      }
+
+      // Pago real con MiniKit
       const payRes = await MiniKit.commandsAsync.pay({
         amount: price,
         currency: 'WLD',
