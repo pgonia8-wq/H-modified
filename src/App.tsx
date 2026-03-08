@@ -10,13 +10,12 @@ function App() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Carga userId de localStorage si ya verificado
     const storedUserId = localStorage.getItem('userId');
-    console.log("[APP] userId desde localStorage:", storedUserId);
+    console.log("[APP] (useEffect) userId desde localStorage:", storedUserId);
     if (storedUserId) {
       setUserId(storedUserId);
       setVerified(true);
-      console.log("[APP] Usuario ya verificado, estado actualizado");
+      console.log("[APP] (useEffect) Usuario ya verificado, estado actualizado", storedUserId);
     }
   }, []);
 
@@ -42,28 +41,36 @@ function App() {
       const finalPayload = verifyRes?.finalPayload;
       if (!finalPayload || finalPayload.status !== "success") {
         setError("Verificación cancelada o fallida");
-        console.log("[APP] verify.finalPayload inválido o cancelado");
+        console.log("[APP] verify.finalPayload inválido o cancelado:", finalPayload);
         return;
       }
 
       const proofData = finalPayload.proof;
       if (!proofData) {
         setError("No se encontró proof válido");
-        console.log("[APP] proofData no existe");
+        console.log("[APP] proofData no existe:", finalPayload);
         return;
       }
 
-      const id = proofData.nullifier_hash;  // identificador único de World ID
+      const id = proofData.nullifier_hash;
       console.log("[APP] nullifier_hash obtenido:", id);
+
+      if (!id) {
+        setError("nullifier_hash es undefined. Verifica MiniKit.");
+        console.log("[APP] nullifier_hash es undefined en proofData:", proofData);
+        return;
+      }
 
       const body = {
         proof: proofData.proof,
         merkle_root: proofData.merkle_root,
-        nullifier_hash: proofData.nullifier_hash,
+        nullifier_hash: id,
         verification_level: proofData.verification_level,
         action: "verify-user",
         max_age: 7200,
       };
+
+      console.log("[APP] Enviando POST a /api/verify con body:", body);
 
       const res = await fetch("/api/verify", {
         method: "POST",
@@ -74,16 +81,17 @@ function App() {
       const result = await res.json();
       console.log("[APP] Respuesta backend /api/verify:", result);
 
-      if (result.success) {
+      if (result.success && result.userId) {
         setVerified(true);
-        setUserId(id);
-        localStorage.setItem('userId', id);  // Persiste para futuras sesiones
+        setUserId(result.userId);
+        localStorage.setItem('userId', result.userId);
         setMessage("✅ Verificación exitosa");
-        console.log("[APP] Usuario verificado y guardado:", id);
+        console.log("[APP] Usuario verificado y guardado correctamente:", result.userId);
       } else {
-        setError("Backend rechazó la prueba: " + (result.error || ""));
-        console.log("[APP] Backend rechazó la prueba:", result.error);
+        setError("Backend rechazó la prueba: " + (result.error || "userId missing"));
+        console.log("[APP] Backend rechazó la prueba:", result.error, "userId:", result.userId);
       }
+
     } catch (err: any) {
       setError("Error durante verificación: " + err.message);
       console.log("[APP] Error catch:", err);
@@ -94,18 +102,9 @@ function App() {
     <div className="min-h-screen flex items-center justify-center bg-gray-100 p-4">
       {!verified || !userId ? (
         <div className="bg-white rounded-2xl shadow-xl p-8 flex flex-col items-center w-full max-w-md">
-          <img
-            src="/logo.png"
-            alt="Logo H"
-            className="w-40 h-40 rounded-full mb-6 shadow-lg object-contain"
-          />
-          <p className="text-black text-2xl font-bold mb-6 text-center">
-            Verificando con H…
-          </p>
-          <button
-            onClick={handleVerify}
-            className="px-8 py-3 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition"
-          >
+          <img src="/logo.png" alt="Logo H" className="w-40 h-40 rounded-full mb-6 shadow-lg object-contain" />
+          <p className="text-black text-2xl font-bold mb-6 text-center">Verificando con H…</p>
+          <button onClick={handleVerify} className="px-8 py-3 bg-black text-white rounded-full shadow-lg hover:bg-gray-800 transition">
             Iniciar verificación
           </button>
           {message && <p className="mt-4 text-gray-700">{message}</p>}
