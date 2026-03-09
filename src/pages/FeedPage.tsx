@@ -4,7 +4,7 @@ import { supabase } from "../supabaseClient";
 import { MiniKit } from "@worldcoin/minikit-js";
 
 const WLD_TOKEN =
-"0x163f8c2467924be0ae7b5347228cabf260318753";
+  "0x163f8c2467924be0ae7b5347228cabf260318753";
 
 interface FeedPageProps {
   posts: any[];
@@ -23,23 +23,24 @@ const FeedPage: React.FC<FeedPageProps> = ({
 }) => {
 
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
+
   const [selectedTier, setSelectedTier] =
-  useState<"premium" | "premium+" | null>(null);
+    useState<"premium" | "premium+" | null>(null);
 
   const [showSlideModal, setShowSlideModal] =
-  useState(false);
+    useState(false);
 
   const [loadingUpgrade, setLoadingUpgrade] =
-  useState(false);
+    useState(false);
 
   const [upgradeError, setUpgradeError] =
-  useState<string | null>(null);
+    useState<string | null>(null);
 
   const [price, setPrice] = useState(0);
   const [slotsLeft, setSlotsLeft] = useState(0);
 
   const [showInsufficientFunds, setShowInsufficientFunds] =
-  useState(false);
+    useState(false);
 
   useEffect(() => {
 
@@ -53,7 +54,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         .eq("tier", selectedTier);
 
       const limit =
-      selectedTier === "premium" ? 10000 : 3000;
+        selectedTier === "premium" ? 10000 : 3000;
 
       const used = count || 0;
 
@@ -68,6 +69,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
           ? 20
           : 35
       );
+
     };
 
     fetchSlots();
@@ -75,7 +77,9 @@ const FeedPage: React.FC<FeedPageProps> = ({
   }, [selectedTier]);
 
   const handleUpgrade = () => {
+
     setShowUpgradeOptions(true);
+
   };
 
   const selectTier = (
@@ -98,10 +102,13 @@ const FeedPage: React.FC<FeedPageProps> = ({
   const confirmUpgrade = async () => {
 
     if (!currentUserId || !selectedTier) {
+
       setUpgradeError(
         "No se encontró tu ID o tier seleccionado"
       );
+
       return;
+
     }
 
     setLoadingUpgrade(true);
@@ -110,31 +117,33 @@ const FeedPage: React.FC<FeedPageProps> = ({
     try {
 
       if (!MiniKit.isInstalled()) {
+
         throw new Error(
           "MiniKit no detectado dentro de World App"
         );
+
       }
 
       const payRes =
-      await MiniKit.commandsAsync.pay({
+        await MiniKit.commandsAsync.pay({
 
-        reference:
-        "upgrade-" + Date.now(),
+          reference:
+            "upgrade-" + Date.now(),
 
-        to:
-        "0x4df4a99b05945b0594db02127ad3cdffea619f4cb",
+          to:
+            "0x4df4a99b05945b0594db02127ad3cdffea619f4cb",
 
-        tokens: [
-          {
-            address: WLD_TOKEN,
-            amount: price.toString()
-          }
-        ],
+          tokens: [
+            {
+              address: WLD_TOKEN,
+              amount: price.toString()
+            }
+          ],
 
-        description:
-        `Upgrade ${selectedTier}`
+          description:
+            `Upgrade ${selectedTier}`
 
-      });
+        });
 
       console.log(
         "[UPGRADE] pay response:",
@@ -146,7 +155,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
       ) {
 
         const err =
-        payRes?.finalPayload?.description || "";
+          payRes?.finalPayload?.description || "";
 
         if (
           err.includes("insufficient") ||
@@ -154,6 +163,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
         ) {
 
           setShowInsufficientFunds(true);
+
           throw new Error(
             "Fondos insuficientes"
           );
@@ -161,37 +171,48 @@ const FeedPage: React.FC<FeedPageProps> = ({
         }
 
         throw new Error("Pago cancelado");
+
       }
 
       const transactionId =
-      payRes?.finalPayload?.transaction_id;
+        payRes?.finalPayload?.transaction_id;
+
+      if (!transactionId) {
+
+        throw new Error(
+          "No se recibió transaction_id"
+        );
+
+      }
 
       const res =
-      await fetch("/api/upgrade", {
+        await fetch("/api/upgrade", {
 
-        method: "POST",
+          method: "POST",
 
-        headers: {
-          "Content-Type": "application/json"
-        },
+          headers: {
+            "Content-Type": "application/json"
+          },
 
-        body: JSON.stringify({
+          body: JSON.stringify({
 
-          userId: currentUserId,
-          tier: selectedTier,
-          transactionId
+            userId: currentUserId,
+            tier: selectedTier,
+            transactionId
 
-        })
+          })
 
-      });
+        });
 
       const data = await res.json();
 
       if (!data.success) {
+
         throw new Error(
           data.error ||
           "Error al procesar upgrade"
         );
+
       }
 
       alert(
@@ -307,8 +328,12 @@ const FeedPage: React.FC<FeedPageProps> = ({
               Beneficios de {selectedTier}
             </h2>
 
-            <p className="text-white text-center mb-4">
+            <p className="text-white text-center mb-2">
               Precio: {price} WLD
+            </p>
+
+            <p className="text-gray-400 text-center mb-6">
+              Slots restantes: {slotsLeft}
             </p>
 
             <div className="flex gap-4">
@@ -331,6 +356,31 @@ const FeedPage: React.FC<FeedPageProps> = ({
               </button>
 
             </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+      {showInsufficientFunds && (
+
+        <div className="fixed inset-0 flex items-center justify-center bg-black/70 z-50">
+
+          <div className="bg-gray-900 p-6 rounded-2xl text-center">
+
+            <p className="text-white mb-4">
+              No tienes suficientes WLD para este upgrade.
+            </p>
+
+            <button
+              onClick={() =>
+                setShowInsufficientFunds(false)
+              }
+              className="px-6 py-2 bg-yellow-500 text-black rounded-xl font-bold"
+            >
+              OK
+            </button>
 
           </div>
 
