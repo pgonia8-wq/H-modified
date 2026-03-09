@@ -3,9 +3,6 @@ import PostCard from "../components/PostCard";
 import { supabase } from "../supabaseClient";
 import { MiniKit } from "@worldcoin/minikit-js";
 
-const WLD_TOKEN =
-"0x163f8c2467924be0ae7b5347228cabf260318753";
-
 const RECEIVER =
 "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
@@ -66,6 +63,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
           : 35;
 
       setPrice(calculatedPrice);
+
     };
 
     fetchSlots();
@@ -117,9 +115,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       }
 
-      const amount =
-      (price * 1e18).toString();
-
       const payRes =
       await MiniKit.commandsAsync.pay({
 
@@ -130,8 +125,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
         tokens: [
           {
-            address: WLD_TOKEN,
-            amount
+            symbol: "WLD",
+            token_amount: price.toString()
           }
         ],
 
