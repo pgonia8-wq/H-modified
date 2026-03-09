@@ -36,10 +36,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   // SCORE PARA FEED
   const [score, setScore] = useState(0);
 
+  // --- TAGS INTERNOS ---
+  const [tags, setTags] = useState<string[]>(post.tags || []);
+
+  // --- CALCULAR SCORE ---
   useEffect(() => {
     const calculateScore = async () => {
       try {
-        // Fetch total tips for this post
+        // Total tips
         const { data: tipsData } = await supabase
           .from("tips")
           .select("amount_total")
@@ -47,23 +51,27 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
         const totalTips = tipsData?.reduce((sum, tip) => sum + tip.amount_total, 0) || 0;
 
-        // Boost active
+        // Boost activo
         const boostActive = post.boosted_until && new Date(post.boosted_until) > new Date() ? 1 : 0;
 
-        // Recency decay: 1 / (hours_since_post + 1)
+        // Decay avanzado: exponencial
         const hoursSincePost = post.timestamp
           ? Math.max((Date.now() - new Date(post.timestamp).getTime()) / (1000 * 60 * 60), 0)
           : 0;
-        const recencyDecay = 1 / (hoursSincePost + 1);
+        const recencyDecay = 1 / Math.pow(hoursSincePost + 1, 1.2); // decay exponencial
 
-        // Calculate final score
+        // Tags internos (no se muestran en UI)
+        const tagScore = tags.length * 0.5;
+
+        // Calculo final
         const calculatedScore =
           (likes || 0) * 1 +
           (comments || 0) * 2 +
           (reposts || 0) * 2 +
           totalTips * 3 +
           boostActive * 10 +
-          recencyDecay;
+          recencyDecay +
+          tagScore;
 
         setScore(calculatedScore);
       } catch (err: any) {
@@ -72,8 +80,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     };
 
     calculateScore();
-  }, [post.id, likes, comments, reposts, post.boosted_until, post.timestamp]);
+  }, [post.id, likes, comments, reposts, post.boosted_until, post.timestamp, tags]);
 
+  // --- FETCH FOLLOW STATS ---
   useEffect(() => {
     if (!post.user_id) return;
 
@@ -97,12 +106,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     fetchStats();
   }, [post.user_id]);
 
-  /*
-  TIP PAYMENT
-  90% creator
-  10% app
-  */
-
+  // --- HANDLE TIP ---
   const handleTip = async () => {
     if (!currentUserId || !tipAmount || tipAmount < 1) {
       setError("Tip mínimo 1 WLD");
@@ -156,10 +160,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  /*
-  BOOST PAYMENT
-  */
-
+  // --- HANDLE BOOST ---
   const handleBoost = async () => {
     if (!currentUserId) return;
 
@@ -212,10 +213,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  /*
-  BUG INTENCIONAL PARA ERUDA
-  */
-
+  // --- BUG INTENCIONAL PARA ERUDA ---
   useEffect(() => {
     if (post.debug_bug) {
       console.log("DEBUG BUG ACTIVATED", notDefinedVariable);
@@ -240,16 +238,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </h3>
 
           <div className="text-gray-400 text-xs flex gap-3 mt-1">
-
             <span>Followers: {followers}</span>
             <span>Following: {following}</span>
             <span>🕒 {new Date(post.timestamp || "").toLocaleString()}</span>
-
             {post.boosted_until &&
               new Date(post.boosted_until) > new Date() && (
                 <span className="text-yellow-400">🚀 Boosted</span>
               )}
-
           </div>
 
           {currentUserId && post.user_id !== currentUserId && (
@@ -273,7 +268,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       </p>
 
       <div className="flex gap-4 text-gray-400 text-sm">
-
         <button onClick={() => setLiked(!liked)}>
           {liked ? "❤️" : "♡"} {likes}
         </button>
@@ -286,10 +280,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           🔁 {reposts}
         </button>
 
+        <span className="ml-auto font-bold text-white">Score: {score.toFixed(2)}</span>
       </div>
 
       <div className="flex flex-wrap gap-2 pt-3 items-center">
-
         <input
           type="number"
           step={0.1}
@@ -317,7 +311,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         >
           {isBoosting ? "🚀..." : "Boost"}
         </button>
-
       </div>
 
       {error && (
