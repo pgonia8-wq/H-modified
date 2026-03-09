@@ -20,7 +20,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const { theme } = useContext(ThemeContext);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [creatingProfile, setCreatingProfile] = useState(false);
+  const creatingProfileRef = useRef(false); // <--- FIX: evita crear profile duplicado
 
   const maxChars =
     profile?.tier === "premium+"
@@ -74,39 +74,38 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             .from("profiles")
             .select("*")
             .eq("id", userId)
-            .maybeSingle(); // FIX: evita error si no hay profile
+            .maybeSingle();
 
           if (error) {
             console.error("[HOME] Error en fetchProfile:", error);
-            setError("Error al cargar perfil");
-            return;
-          }
-
-          if (data) {
+            setError("Error cargando perfil");
+          } else if (data) {
             console.log("[HOME] Profile cargado:", data);
             setProfile(data);
-          } else if (!creatingProfile) {
-            // Si no existe profile, crearlo una sola vez
-            setCreatingProfile(true);
+          } else if (!creatingProfileRef.current) {
+            creatingProfileRef.current = true; // <--- Marca que ya estamos creando
             console.log("[HOME] No existe profile, creando...");
 
-            const res = await fetch("/api/createProfile", {
+            fetch("/api/createProfile", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ userId })
-            });
-
-            const result = await res.json();
-
-            if (result.success) {
-              setProfile(result.profile);
-            } else {
-              console.error("[HOME] Error creando profile:", result.error);
-            }
+            })
+              .then(res => res.json())
+              .then(result => {
+                if (result.success) {
+                  setProfile(result.profile);
+                } else {
+                  console.error("[HOME] Error creando profile:", result.error);
+                }
+              })
+              .catch(err => {
+                console.error("[HOME] Error creando profile:", err);
+              });
           }
         } catch (err: any) {
           console.error("[HOME] Error en fetchProfile:", err);
-          setError("Error al cargar perfil");
+          setError("Error cargando perfil");
         }
       };
 
@@ -114,7 +113,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
 
     fetchPosts(true);
-  }, [userId, fetchPosts, creatingProfile]);
+  }, [userId, fetchPosts]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -162,9 +161,12 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       if (insertError) throw insertError;
 
       alert("¡Post publicado correctamente!");
+
       setShowNewPostModal(false);
       setNewPostContent("");
+
       fetchPosts(true);
+
     } catch (err: any) {
       console.error("[POST] Error:", err);
       alert("Error al publicar: " + err.message);
