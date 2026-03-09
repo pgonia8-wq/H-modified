@@ -33,6 +33,47 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const accentColor = "#7c3aed";
 
+  // SCORE PARA FEED
+  const [score, setScore] = useState(0);
+
+  useEffect(() => {
+    const calculateScore = async () => {
+      try {
+        // Fetch total tips for this post
+        const { data: tipsData } = await supabase
+          .from("tips")
+          .select("amount_total")
+          .eq("to_post_id", post.id);
+
+        const totalTips = tipsData?.reduce((sum, tip) => sum + tip.amount_total, 0) || 0;
+
+        // Boost active
+        const boostActive = post.boosted_until && new Date(post.boosted_until) > new Date() ? 1 : 0;
+
+        // Recency decay: 1 / (hours_since_post + 1)
+        const hoursSincePost = post.timestamp
+          ? Math.max((Date.now() - new Date(post.timestamp).getTime()) / (1000 * 60 * 60), 0)
+          : 0;
+        const recencyDecay = 1 / (hoursSincePost + 1);
+
+        // Calculate final score
+        const calculatedScore =
+          (likes || 0) * 1 +
+          (comments || 0) * 2 +
+          (reposts || 0) * 2 +
+          totalTips * 3 +
+          boostActive * 10 +
+          recencyDecay;
+
+        setScore(calculatedScore);
+      } catch (err: any) {
+        console.error("[SCORE] error:", err);
+      }
+    };
+
+    calculateScore();
+  }, [post.id, likes, comments, reposts, post.boosted_until, post.timestamp]);
+
   useEffect(() => {
     if (!post.user_id) return;
 
