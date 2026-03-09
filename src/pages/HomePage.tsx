@@ -1,4 +1,3 @@
-// src/pages/HomePage.tsx
 import React, { useEffect, useState, useRef, useCallback, useContext } from "react";
 import { supabase } from "../supabaseClient";
 import FeedPage from './FeedPage';
@@ -55,7 +54,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         if (reset) setPage(1);
         else setPage((prev) => prev + 1);
       } catch (err: any) {
-        console.error("Error fetching posts:", err);
+        console.error("[HOME] Error fetching posts:", err);
         setError(err.message);
       } finally {
         setLoading(false);
@@ -64,63 +63,51 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     [page, hasMore]
   );
 
+  // ------------------ FIX PROFILE CREATION ------------------
+  const fetchOrCreateProfile = useCallback(async (uid: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", uid)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      if (!data) {
+        console.log("[HOME] No existe profile, creando...");
+        // Llamada a tu API serverless createProfile
+        const res = await fetch("/api/createProfile.mjs", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: uid })
+        });
+
+        const result = await res.json();
+
+        if (!result.success) throw new Error(result.error || "Error creando profile");
+
+        setProfile(result.profile);
+        console.log("[HOME] Profile creado:", result.profile);
+      } else {
+        setProfile(data);
+        console.log("[HOME] Profile cargado:", data);
+      }
+    } catch (err: any) {
+      console.error("[HOME] Error en fetchOrCreateProfile:", err);
+      setError("Error cargando perfil");
+    }
+  }, []);
+
   useEffect(() => {
     console.log("[HOME] userId recibido:", userId);
 
     if (userId) {
-      const fetchProfile = async () => {
-        try {
-          // FIX: RLS seguro usando supabase.auth.uid() y cast
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId) // userId ya viene de MiniKit
-            .maybeSingle();
-
-          if (error) {
-            console.error("[HOME] Error en fetchProfile:", error);
-            setError("Error en fetchProfile: " + error.message);
-          } else if (!data) {
-            console.log("[HOME] No existe profile, creando...");
-            // Creación del profile usando UPSERT para evitar duplicate key
-            const { error: insertError, data: insertData } = await supabase
-              .from("profiles")
-              .upsert(
-                {
-                  id: userId,
-                  name: "Nuevo Usuario",
-                  username: userId.slice(2, 8),
-                  avatar_url: null,
-                  tier: "free",
-                  created_at: new Date().toISOString()
-                },
-                { onConflict: "id" } // evita duplicate key
-              )
-              .select()
-              .maybeSingle();
-
-            if (insertError) {
-              console.error("[HOME] Error creando profile:", insertError);
-              setError("Error creando profile: " + insertError.message);
-            } else {
-              setProfile(insertData);
-              console.log("[HOME] Profile creado:", insertData);
-            }
-          } else {
-            setProfile(data);
-            console.log("[HOME] Profile cargado:", data);
-          }
-        } catch (err: any) {
-          console.error("[HOME] Excepción en fetchProfile:", err);
-          setError("Error en fetchProfile: " + err.message);
-        }
-      };
-
-      fetchProfile();
+      fetchOrCreateProfile(userId);
     }
 
     fetchPosts(true);
-  }, [userId, fetchPosts]);
+  }, [userId, fetchOrCreateProfile, fetchPosts]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -301,11 +288,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       )}
 
       {/* Modal Perfil */}
-      {showProfileModal && (
+      {showProfileModal && profile && (
         <ProfileModal
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile?.tier === "free"}
+          showUpgradeButton={profile.tier === "free"}
         />
       )}
     </div>
