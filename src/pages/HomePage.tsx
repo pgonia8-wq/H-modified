@@ -66,30 +66,37 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   // ------------------ FIX PROFILE CREATION ------------------
   const fetchOrCreateProfile = useCallback(async (uid: string) => {
     try {
-      // 🔹 Cambiado maybeSingle() a single() para evitar error de JSON
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
         .eq("id", uid)
-        .single();
+        .maybeSingle();
 
-      // Si no existe profile, llamamos a API serverless
-      if (error && error.code === "PGRST116") {
+      if (error) throw error;
+
+      if (!data) {
         console.log("[HOME] No existe profile, creando...");
+
+        // 🔹 Cambiado fetch para manejar Vercel .mjs
         const res = await fetch("/api/createProfile.mjs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: uid })
         });
 
-        const result = await res.json();
+        // 🔹 Uso res.text() y parseo manual
+        const text = await res.text();
+        let result;
+        try {
+          result = JSON.parse(text);
+        } catch {
+          result = { success: false, profile: null, error: "Invalid JSON from server" };
+        }
 
         if (!result.success) throw new Error(result.error || "Error creando profile");
 
-        setProfile(result.profile ?? null);
+        setProfile(result.profile);
         console.log("[HOME] Profile creado:", result.profile);
-      } else if (error) {
-        throw error;
       } else {
         setProfile(data);
         console.log("[HOME] Profile cargado:", data);
