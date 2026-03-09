@@ -66,15 +66,15 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   // ------------------ FIX PROFILE CREATION ------------------
   const fetchOrCreateProfile = useCallback(async (uid: string) => {
     try {
+      // Selecciona los perfiles
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", uid)
-        .maybeSingle();
+        .eq("id", uid);
 
       if (error) throw error;
 
-      if (!data) {
+      if (!data || data.length === 0) {
         console.log("[HOME] No existe profile, creando...");
         // Llamada a tu API serverless createProfile
         const res = await fetch("/api/createProfile.mjs", {
@@ -90,8 +90,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         setProfile(result.profile);
         console.log("[HOME] Profile creado:", result.profile);
       } else {
-        setProfile(data);
-        console.log("[HOME] Profile cargado:", data);
+        setProfile(data[0]); // seguro que existe un único perfil
+        console.log("[HOME] Profile cargado:", data[0]);
       }
     } catch (err: any) {
       console.error("[HOME] Error en fetchOrCreateProfile:", err);
