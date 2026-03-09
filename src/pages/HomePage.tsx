@@ -66,17 +66,16 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   // ------------------ FIX PROFILE CREATION ------------------
   const fetchOrCreateProfile = useCallback(async (uid: string) => {
     try {
-      // Selecciona los perfiles
+      // 🔹 Cambiado maybeSingle() a single() para evitar error de JSON
       const { data, error } = await supabase
         .from("profiles")
         .select("*")
-        .eq("id", uid);
+        .eq("id", uid)
+        .single();
 
-      if (error) throw error;
-
-      if (!data || data.length === 0) {
+      // Si no existe profile, llamamos a API serverless
+      if (error && error.code === "PGRST116") {
         console.log("[HOME] No existe profile, creando...");
-        // Llamada a tu API serverless createProfile
         const res = await fetch("/api/createProfile.mjs", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -87,11 +86,13 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
         if (!result.success) throw new Error(result.error || "Error creando profile");
 
-        setProfile(result.profile);
+        setProfile(result.profile ?? null);
         console.log("[HOME] Profile creado:", result.profile);
+      } else if (error) {
+        throw error;
       } else {
-        setProfile(data[0]); // seguro que existe un único perfil
-        console.log("[HOME] Profile cargado:", data[0]);
+        setProfile(data);
+        console.log("[HOME] Profile cargado:", data);
       }
     } catch (err: any) {
       console.error("[HOME] Error en fetchOrCreateProfile:", err);
