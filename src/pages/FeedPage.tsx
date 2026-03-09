@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import PostCard from "../components/PostCard";
 import { supabase } from "../supabaseClient";
-import { MiniKit } from "@worldcoin/minikit-js";
+import { MiniKit, tokenToDecimals, Tokens } from "@worldcoin/minikit-js";
 
 const RECEIVER =
 "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
@@ -125,8 +125,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
         tokens: [
           {
-            symbol: "WLD",
-            token_amount: price.toFixed(1)   // FIX
+            symbol: Tokens.WLD,
+            token_amount: tokenToDecimals(price, Tokens.WLD).toString()
           }
         ],
 
