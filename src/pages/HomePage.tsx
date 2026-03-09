@@ -63,36 +63,46 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     [page, hasMore]
   );
 
+  const fetchProfile = useCallback(async () => {
+    if (!userId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", userId)
+        .maybeSingle(); // FIX
+
+      if (error) throw error;
+
+      if (!data) {
+        // Si no existe, crear profile automáticamente
+        const { data: newProfile, error: insertError } = await supabase
+          .from("profiles")
+          .insert({ id: userId, tier: "free", username: "Anon", avatar_url: "" })
+          .select()
+          .maybeSingle();
+
+        if (insertError) throw insertError;
+
+        console.log("[HOME] Nuevo profile creado:", newProfile);
+        setProfile(newProfile);
+      } else {
+        console.log("[HOME] Profile cargado:", data);
+        setProfile(data);
+      }
+    } catch (err: any) {
+      console.error("[HOME] Error en fetchProfile:", err);
+      setError("Error al cargar perfil");
+    }
+  }, [userId]);
+
   useEffect(() => {
     console.log("[HOME] userId recibido:", userId);
 
-    if (userId) {
-      const fetchProfile = async () => {
-        try {
-          const { data, error } = await supabase
-            .from("profiles")
-            .select("*")
-            .eq("id", userId)
-            .maybeSingle(); // Esto evita el error "Cannot coerce the result to a single JSON object"
-
-          if (error) {
-            console.error("[HOME] Error al cargar perfil:", error);
-            setError("No se pudo cargar tu perfil");
-          } else {
-            console.log("[HOME] Profile cargado:", data);
-            setProfile(data || null);
-          }
-        } catch (err) {
-          console.error("[HOME] Excepción en fetchProfile:", err);
-          setError("Error al cargar perfil");
-        }
-      };
-
-      fetchProfile();
-    }
-
+    fetchProfile();
     fetchPosts(true);
-  }, [userId, fetchPosts]);
+  }, [userId, fetchProfile, fetchPosts]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -182,7 +192,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           />
 
           <button
-            onClick={() => window.open("/chat", "_blank")}
+            onClick={() => (window.location.href = "/chat")}
             className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-indigo-600 hover:to-purple-600 rounded-full shadow-lg shadow-black/40 text-sm sm:text-base font-medium"
           >
             Chat
