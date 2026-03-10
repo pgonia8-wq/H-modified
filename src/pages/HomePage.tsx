@@ -309,6 +309,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       {/* Modal Perfil */}
       {showProfileModal && profile && (
         <ProfileModal
+          id={userId}                    // ← FIX AGREGADO: ahora ProfileModal recibe id
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
