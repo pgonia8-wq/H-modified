@@ -56,6 +56,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId 
   const { theme } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- FIX: Loader si no hay ID ---
+  if (!id && loading) {
+    return (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <p className="text-white">Cargando perfil...</p>
+      </div>
+    );
+  }
+
   // --- Cargar perfil ---
   useEffect(() => {
     if (!id) return setLoading(false);
@@ -69,13 +78,19 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId 
           .maybeSingle();
         if (error) throw error;
 
-        setProfile(data || emptyProfile);
-        setBioLength(data?.bio?.length || 0);
+        // --- FIX: fallback seguro ---
+        setProfile({
+          ...emptyProfile,
+          ...data,
+          username: data?.username || `@${id.slice(0, 10)}`,
+          bio: data?.bio || "",
+          name: data?.name || "",
+          birthdate: data?.birthdate || "",
+          city: data?.city || "",
+          country: data?.country || "",
+        });
 
-        if (!data?.username && id) {
-          const autoUsername = `@${id.slice(0, 10)}`;
-          setProfile((prev) => ({ ...prev, username: autoUsername }));
-        }
+        setBioLength(data?.bio?.length || 0);
       } catch (err: any) {
         setToast({ message: err.message, type: "error" });
       } finally {
@@ -218,8 +233,9 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId 
 
               <div>
                 <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
+                {/* FIX: fallback seguro username */}
                 <input
-                  value={`@${id?.slice(0, 10)}`}
+                  value={profile.username || `@${id?.slice(0, 10)}`}
                   disabled
                   className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
                 />
@@ -252,7 +268,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId 
 
             {/* Bio */}
             <textarea
-              value={profile.bio}
+              value={profile.bio || ""}
               onChange={(e) => {
                 if (e.target.value.length <= 160) {
                   setProfile({ ...profile, bio: e.target.value });
@@ -265,18 +281,18 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId 
 
             <input
               type="date"
-              value={profile.birthdate}
+              value={profile.birthdate || ""}
               onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
             <input
-              value={profile.city}
+              value={profile.city || ""}
               onChange={(e) => setProfile({ ...profile, city: e.target.value })}
               placeholder="Ciudad"
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
             <input
-              value={profile.country}
+              value={profile.country || ""}
               onChange={(e) => setProfile({ ...profile, country: e.target.value })}
               placeholder="País"
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
