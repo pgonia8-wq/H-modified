@@ -28,12 +28,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
-  const [conversationToOpen, setConversationToOpen] = useState<string | null>(null); // <<< FIX INSERTADO
-
-  const openChat = (otherUserId: string) => { // <<< FIX INSERTADO
-    setConversationToOpen(otherUserId);
-    setShowProfileModal(false);
-  };
+  const [chatTargetId, setChatTargetId] = useState<string | null>(null); // ← NUEVO
+  const [conversationId, setConversationId] = useState<string | null>(null); // ← NUEVO
 
   const fetchPosts = useCallback(
     async (reset = false) => {
@@ -187,6 +183,12 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
+  const openChatFromModal = (otherUserId: string) => { // ← NUEVO
+    setConversationId(otherUserId); 
+    setChatTargetId(otherUserId);
+    setShowProfileModal(false);
+  };
+
   return (
     <div
       ref={containerRef}
@@ -267,7 +269,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           error={error}
           currentUserId={userId}
           userTier={profile?.tier || "free"}
-          onUpgradeSuccess={fetchOrCreateProfile}  // ← Agregada
+          onUpgradeSuccess={fetchOrCreateProfile}
         />
       </main>
 
@@ -316,19 +318,20 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       {/* Modal Perfil */}
       {showProfileModal && profile && (
         <ProfileModal
-          id={userId}                    // ← FIX AGREGADO
+          id={userId}
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
-          onOpenChat={openChat}          // <<< FIX INSERTADO
+          openChat={openChatFromModal} // ← NUEVO
         />
       )}
 
-      {/* ChatPage */}
-      {conversationToOpen && (
+      {/* ChatPage single-page */}
+      {conversationId && chatTargetId && (
         <ChatPage
           currentUserId={userId}
-          initialOtherUserId={conversationToOpen} // <<< FIX INSERTADO
+          conversationId={conversationId}
+          otherUserId={chatTargetId}
         />
       )}
     </div>
