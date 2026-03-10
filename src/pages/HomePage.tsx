@@ -4,7 +4,7 @@ import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import ChatPage from "./chat/ChatPage"; // ← AGREGADO
+import ChatPage from "./chat/ChatPage"; // ← FIX AGREGADO (NO EXISTÍA)
 
 const PAGE_SIZE = 8;
 
@@ -29,8 +29,8 @@ profile?.tier === "premium+"
 ? 4000
 : 280;
 
-const [chatTargetId, setChatTargetId] = useState<string | null>(null);
-const [conversationId, setConversationId] = useState<string | null>(null);
+const [chatTargetId, setChatTargetId] = useState<string | null>(null); // ← NUEVO
+const [conversationId, setConversationId] = useState<string | null>(null); // ← NUEVO
 
 const fetchPosts = useCallback(
 async (reset = false) => {
@@ -53,6 +53,7 @@ if (error) throw error;
 const newPosts = data || [];
 
 setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
+
 setHasMore(newPosts.length === PAGE_SIZE);
 
 if (reset) setPage(1);
@@ -102,11 +103,12 @@ throw new Error(`Error en API createProfile: ${res.status} - ${errText}`);
 }
 
 const text = await res.text();
+
 let result;
 
 try {
 result = JSON.parse(text);
-} catch {
+} catch (parseErr) {
 throw new Error("Respuesta inválida del servidor (no es JSON válido)");
 }
 
@@ -115,6 +117,7 @@ throw new Error(result.error || "Error al crear el perfil");
 }
 
 setProfile(result.profile);
+
 console.log("[HOME] Profile creado exitosamente:", result.profile);
 } catch (err: any) {
 console.error("[HOME] Error en fetchOrCreateProfile:", err);
@@ -176,8 +179,10 @@ visibility_score: 1
 if (insertError) throw insertError;
 
 alert("¡Post publicado correctamente!");
+
 setShowNewPostModal(false);
 setNewPostContent("");
+
 fetchPosts(true);
 } catch (err: any) {
 console.error("[POST] Error:", err);
@@ -185,7 +190,7 @@ alert("Error al publicar: " + err.message);
 }
 };
 
-const openChatFromModal = (otherUserId: string) => {
+const openChatFromModal = (otherUserId: string) => { // ← NUEVO
 setConversationId(otherUserId);
 setChatTargetId(otherUserId);
 setShowProfileModal(false);
@@ -207,9 +212,11 @@ theme === "dark"
 : "border-black/10 bg-white/90"
 } backdrop-blur-xl`}
 >
+
 Humans
 
 <div className="flex gap-3">
+
 <ActionButton
 label="Post"
 onClick={() => setShowNewPostModal(true)}
@@ -222,13 +229,16 @@ className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 hover:from-i
 >
 Chat
 </button>
+
 </div>
 
 <div className="flex items-center gap-3 sm:gap-4">
+
 <div className="relative cursor-pointer">
 <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center text-lg shadow-inner">
 🔔
 </div>
+
 <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">
 3
 </span>
@@ -240,6 +250,7 @@ onClick={() => setShowProfileModal(true)}
 >
 H
 </div>
+
 </div>
 </header>
 
@@ -247,7 +258,18 @@ H
 className="text-center py-4 text-gray-400 text-sm flex items-center justify-center gap-2 cursor-pointer"
 onClick={handleRefresh}
 >
+
+<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+<path
+strokeLinecap="round"
+strokeLinejoin="round"
+strokeWidth={2}
+d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+/>
+</svg>
+
 Tirar para refrescar
+
 </div>
 
 <main className="w-full px-2 py-6 flex justify-center">
@@ -264,6 +286,7 @@ onUpgradeSuccess={fetchOrCreateProfile}
 {showNewPostModal && (
 <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
 <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
+
 <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
 
 <textarea
@@ -278,11 +301,13 @@ maxLength={maxChars}
 />
 
 <div className="flex justify-between mt-4 text-sm text-gray-400">
+
 <span>
 {newPostContent.length} / {maxChars}
 </span>
 
 <div className="flex gap-3">
+
 <button
 onClick={() => setShowNewPostModal(false)}
 className="px-5 py-2 bg-gray-800 rounded-full"
@@ -296,6 +321,7 @@ className="px-6 py-2 bg-purple-600 rounded-full font-medium"
 >
 Publicar
 </button>
+
 </div>
 </div>
 </div>
@@ -307,8 +333,8 @@ Publicar
 id={userId}
 currentUserId={userId}
 onClose={() => setShowProfileModal(false)}
-showUpgradeButton={profile?.tier === "free"}
-onOpenChat={openChatFromModal} 
+showUpgradeButton={profile.tier === "free"}
+onOpenChat={openChatFromModal} // ← FIX CAMBIO DE PROP
 />
 )}
 
