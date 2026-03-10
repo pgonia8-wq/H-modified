@@ -4,7 +4,6 @@ import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
-import ChatPage from "./chat/ChatPage"; // ← CORRECCIÓN DE RUTA
 
 const PAGE_SIZE = 8;
 
@@ -29,8 +28,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
-  const [chatTargetId, setChatTargetId] = useState<string | null>(null); 
-  const [conversationId, setConversationId] = useState<string | null>(null); 
+  const [chatTargetId, setChatTargetId] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
 
   const fetchPosts = useCallback(
     async (reset = false) => {
@@ -184,7 +183,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
-  const openChatFromModal = (otherUserId: string) => { 
+  const openChatFromModal = (otherUserId: string) => {
     setConversationId(otherUserId); 
     setChatTargetId(otherUserId);
     setShowProfileModal(false);
@@ -323,7 +322,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
-          openChat={openChatFromModal} 
+          onOpenChat={openChatFromModal} // ✅ CORREGIDO
         />
       )}
 
@@ -333,7 +332,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           conversationId={conversationId}
           otherUserId={chatTargetId}
-          onClose={() => setConversationId(null)} 
         />
       )}
     </div>
