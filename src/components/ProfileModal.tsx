@@ -56,21 +56,15 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [activeTab, setActiveTab] = useState<"posts" | "responses" | "likes">("posts");
   const [bioLength, setBioLength] = useState(0);
-
   const { theme, setTheme } = useContext(ThemeContext);
-
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
+  const [isSubscribed, setIsSubscribed] = useState(false);
 
   useEffect(() => {
-
     if (!id) return setLoading(false);
 
     const fetchProfile = async () => {
-
       try {
-
         const { data, error } = await supabase
           .from("profiles")
           .select("*")
@@ -87,30 +81,31 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
           setProfile((prev) => ({ ...prev, username: autoUsername }));
         }
 
+        // verificar suscripción a chat premium
+        const { data: subData } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .eq("user_id", id)
+          .eq("active", true)
+          .maybeSingle();
+
+        setIsSubscribed(!!subData);
+
       } catch (err: any) {
-
         setError(err.message);
-
       } finally {
-
         setLoading(false);
-
       }
-
     };
 
     fetchProfile();
-
   }, [id]);
 
   const handleSave = async () => {
-
     if (!id) return;
-
     setSaving(true);
 
     try {
-
       const { error } = await supabase
         .from("profiles")
         .update({
@@ -124,30 +119,21 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .eq("id", id);
 
       if (error) throw error;
-
       setToast({ message: "Perfil guardado", type: "success" });
 
     } catch (err: any) {
-
       setToast({ message: "Error guardando perfil", type: "error" });
-
     } finally {
-
       setSaving(false);
-
     }
-
   };
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-
     const file = e.target.files?.[0];
     if (!file || !id) return;
-
     setUploadingAvatar(true);
 
     try {
-
       const { data, error } = await supabase.storage
         .from("avatars")
         .upload(`${id}/${file.name}`, file);
@@ -165,116 +151,53 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
         .update({ avatar_url: publicUrl })
         .eq("id", id);
 
-      setProfile(prev => ({
-        ...prev,
-        avatar_url: publicUrl
-      }));
+      setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
 
     } catch (err: any) {
-
       setError(err.message);
-
     } finally {
-
       setUploadingAvatar(false);
-
     }
-
   };
 
-  const startChat = async () => {
+  const handlePremiumChat = async () => {
+    if (!id) return;
 
-    if (!id || !profile.id) return;
-
-    try {
-
-      const { data, error } = await supabase.rpc(
-        "get_or_create_conversation",
-        {
-          user_a: id,
-          user_b: profile.id
-        }
-      );
-
-      if (error) throw error;
-
-      window.location.href = `/chat/${data}`;
-
-    } catch (err) {
-
-      console.error(err);
-
+    if (!isSubscribed) {
+      // redirigir al checkout de suscripción 5 WLD (18 decimales)
+      const amount = BigInt(5 * 10 ** 18); 
+      window.location.href = `/checkout?amount=${amount.toString()}&user_id=${id}`;
+      return;
     }
 
-  };
-
-  const toggleProfileVisibility = () => {
-
-    setProfile(prev => ({
-      ...prev,
-      profile_visible: !prev.profile_visible
-    }));
-
-  };
-
-  const blockUser = (userId: string) => {
-
-    if (!blockedUsers.includes(userId)) {
-      setBlockedUsers([...blockedUsers, userId]);
-    }
-
-  };
-
-  const viewProfile = async (userId: string) => {
-
-    try {
-
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .maybeSingle();
-
-      if (data) {
-        setProfile(data);
-      }
-
-    } catch (err) {
-
-      console.error(err);
-
-    }
-
+    // si está suscrito, abrir chat global
+    window.location.href = "/chat/premium";
   };
 
   return (
     <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2 overflow-y-auto">
-
       <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10 space-y-4">
-
         {loading ? (
           <p>Cargando perfil...</p>
+        ) : error ? (
+          <p className="text-red-500">{error}</p>
         ) : (
           <>
             <h2 className="text-xl font-bold text-white">Tu Perfil</h2>
 
             <div className="flex items-center gap-3">
-
               <div className="relative">
-
                 <img
                   src={profile.avatar_url || "/default-avatar.png"}
                   alt="Avatar"
                   className="w-20 h-20 rounded-full object-cover"
                 />
-
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="absolute bottom-0 right-0 bg-purple-600 p-1 rounded-full"
                 >
                   ✏️
                 </button>
-
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -282,28 +205,24 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
                   className="hidden"
                   accept="image/*"
                 />
-
               </div>
 
               <div>
-                <p className="text-white font-bold">
-                  {profile.name || "Tu nombre"}
-                </p>
-
+                <p className="text-white font-bold">{profile.name || "Tu nombre"}</p>
                 <input
                   value={`@${id?.slice(0, 10)}`}
                   disabled
                   className="bg-transparent text-gray-400 cursor-not-allowed outline-none"
                 />
               </div>
-
             </div>
 
+            {/* Botón Chat Premium */}
             <button
-              onClick={startChat}
+              onClick={handlePremiumChat}
               className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
             >
-              Enviar Mensaje
+              {isSubscribed ? "Acceder Chat Creadores de Token" : "Suscribirse Chat (5 WLD/mes)"}
             </button>
 
             <button
@@ -311,20 +230,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               className="w-full py-2 bg-gray-700 text-white rounded-xl"
             >
               {profile.profile_visible ? "Perfil Público" : "Perfil Privado"}
-            </button>
-
-            <button
-              onClick={() => blockUser(profile.id)}
-              className="w-full py-2 bg-red-600 text-white rounded-xl"
-            >
-              Bloquear Usuario
-            </button>
-
-            <button
-              onClick={() => viewProfile(profile.id)}
-              className="w-full py-2 bg-blue-600 text-white rounded-xl"
-            >
-              Ver Perfil
             </button>
 
             <textarea
@@ -337,10 +242,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               }}
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
-
-            <p className="text-gray-500 text-sm text-right">
-              {bioLength}/160
-            </p>
+            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
 
             <input
               type="date"
@@ -364,7 +266,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             />
 
             <div className="flex gap-3">
-
               <button
                 onClick={handleSave}
                 disabled={saving}
@@ -372,16 +273,13 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
               >
                 {saving ? "Guardando..." : "Guardar"}
               </button>
-
               <button
                 onClick={onClose}
                 className="flex-1 py-3 bg-red-600 text-white rounded-full"
               >
                 Cancelar
               </button>
-
             </div>
-
           </>
         )}
 
@@ -390,7 +288,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
             {toast.message}
           </p>
         )}
-
       </div>
     </div>
   );
