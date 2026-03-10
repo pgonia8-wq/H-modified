@@ -3,9 +3,12 @@ import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 
+const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
+
 interface ProfileModalProps {
   id: string | null;
   onClose: () => void;
+  currentUserId: string | null;
 }
 
 interface UserProfile {
@@ -39,23 +42,21 @@ const emptyProfile: UserProfile = {
   posts_count: 0,
   followers_count: 0,
   following_count: 0,
-  profile_visible: true
+  profile_visible: true,
 };
 
-// Dirección del receiver para pagos WLD
-const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
-
-const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
+const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose, currentUserId }) => {
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
-  const [subscribed, setSubscribed] = useState(false); // Suscripción al chat premium
+  const [bioLength, setBioLength] = useState(0);
 
   const { theme } = useContext(ThemeContext);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // --- Cargar perfil ---
   useEffect(() => {
     if (!id) return setLoading(false);
 
@@ -69,20 +70,14 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
         if (error) throw error;
 
         setProfile(data || emptyProfile);
+        setBioLength(data?.bio?.length || 0);
 
-        // Verificar si tiene suscripción activa
-        const { data: subData, error: subError } = await supabase
-          .from("premium_subscriptions")
-          .select("*")
-          .eq("user_id", id)
-          .eq("active", true)
-          .maybeSingle();
-
-        if (subError) throw subError;
-        setSubscribed(!!subData);
-
+        if (!data?.username && id) {
+          const autoUsername = `@${id.slice(0, 10)}`;
+          setProfile((prev) => ({ ...prev, username: autoUsername }));
+        }
       } catch (err: any) {
-        console.error(err);
+        setToast({ message: err.message, type: "error" });
       } finally {
         setLoading(false);
       }
@@ -91,6 +86,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
     fetchProfile();
   }, [id]);
 
+  // --- Guardar cambios ---
   const handleSave = async () => {
     if (!id) return;
     setSaving(true);
@@ -103,7 +99,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
           birthdate: profile.birthdate,
           city: profile.city,
           country: profile.country,
-          profile_visible: profile.profile_visible
+          profile_visible: profile.profile_visible,
         })
         .eq("id", id);
       if (error) throw error;
@@ -115,6 +111,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
     }
   };
 
+  // --- Subir avatar ---
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !id) return;
@@ -131,69 +128,60 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
       const publicUrl = publicURLData.publicUrl;
 
       await supabase.from("profiles").update({ avatar_url: publicUrl }).eq("id", id);
-
       setProfile(prev => ({ ...prev, avatar_url: publicUrl }));
     } catch (err: any) {
-      console.error(err);
+      setToast({ message: err.message, type: "error" });
     } finally {
       setUploadingAvatar(false);
     }
   };
 
-  const handleChatPremium = async () => {
-    if (!id) return;
+  // --- Toggle visibilidad ---
+  const toggleProfileVisibility = () => {
+    setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
+  };
 
-    if (subscribed) {
-      // Abrir chat premium
+  // --- Abrir Chat Exclusivo para Creadores de Tokens ---
+  const handlePremiumChat = async () => {
+    if (!currentUserId) {
+      setToast({ message: "No se encontró tu ID", type: "error" });
+      return;
+    }
+
+    // Si ya es premium, abrir chat
+    if (profile.tier === "premium" || profile.tier === "premium+") {
       window.location.href = "/chat/premium";
       return;
     }
 
-    // Si no está suscripto → pagar 5 WLD
-    if (!MiniKit.isInstalled()) {
-      alert("MiniKit no detectado en World App");
-      return;
-    }
-
+    // Si no, lanzar pago 5 WLD
     try {
-      const price = 5;
+      if (!MiniKit.isInstalled()) throw new Error("MiniKit no detectado dentro de World App");
+
       const payRes = await MiniKit.commandsAsync.pay({
-        reference: "premium_chat-" + Date.now(),
+        reference: "premium-chat-" + Date.now(),
         to: RECEIVER,
-        tokens: [
-          {
-            symbol: Tokens.WLD,
-            token_amount: tokenToDecimals(price, Tokens.WLD).toString()
-          }
-        ],
-        description: "Suscripción mensual Chat Premium"
+        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+        description: "Suscripción Chat Exclusivo Creadores Tokens",
       });
 
       if (payRes?.finalPayload?.status !== "success") {
-        alert("Pago cancelado o fallido");
-        return;
+        throw new Error(payRes?.finalPayload?.description || "Pago cancelado");
       }
 
       const transactionId = payRes?.finalPayload?.transaction_id;
 
-      // Guardar la suscripción en Supabase
-      const { error } = await supabase.from("premium_subscriptions").upsert({
-        user_id: id,
-        active: true,
-        transaction_id: transactionId,
-        started_at: new Date().toISOString(),
-        expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+      // Guardamos en Supabase que el usuario pagó suscripción
+      await fetch("/api/subscribePremiumChat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: currentUserId, transactionId }),
       });
 
-      if (error) throw error;
-
-      setSubscribed(true);
-      alert("¡Suscripción activa! Ahora puedes acceder al chat premium.");
+      alert("¡Suscripción exitosa! Abriendo chat...");
       window.location.href = "/chat/premium";
-
     } catch (err: any) {
-      console.error(err);
-      alert("Error procesando el pago: " + err.message);
+      setToast({ message: err.message || "Error en el pago", type: "error" });
     }
   };
 
@@ -238,16 +226,42 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
               </div>
             </div>
 
+            {/* Botón DM */}
+            <button
+              onClick={() => window.location.href = `/chat/${profile.id}`}
+              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium"
+            >
+              Enviar Mensaje
+            </button>
+
+            {/* Botón Chat Premium */}
+            <button
+              onClick={handlePremiumChat}
+              className="w-full py-3 bg-pink-600 text-white rounded-full font-medium"
+            >
+              Abrir Chat Exclusivo para Creadores de Tokens
+            </button>
+
+            {/* Toggle visibilidad */}
+            <button
+              onClick={toggleProfileVisibility}
+              className="w-full py-2 bg-gray-700 text-white rounded-xl"
+            >
+              {profile.profile_visible ? "Perfil Público" : "Perfil Privado"}
+            </button>
+
+            {/* Bio */}
             <textarea
               value={profile.bio}
               onChange={(e) => {
                 if (e.target.value.length <= 160) {
                   setProfile({ ...profile, bio: e.target.value });
+                  setBioLength(e.target.value.length);
                 }
               }}
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
-              placeholder="Escribe tu bio"
             />
+            <p className="text-gray-500 text-sm text-right">{bioLength}/160</p>
 
             <input
               type="date"
@@ -255,14 +269,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
               onChange={(e) => setProfile({ ...profile, birthdate: e.target.value })}
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
-
             <input
               value={profile.city}
               onChange={(e) => setProfile({ ...profile, city: e.target.value })}
               placeholder="Ciudad"
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
-
             <input
               value={profile.country}
               onChange={(e) => setProfile({ ...profile, country: e.target.value })}
@@ -270,6 +282,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
               className="w-full bg-black border border-gray-700 rounded-xl p-3 text-white"
             />
 
+            {/* Guardar / Cancelar */}
             <div className="flex gap-3">
               <button
                 onClick={handleSave}
@@ -278,7 +291,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
               >
                 {saving ? "Guardando..." : "Guardar"}
               </button>
-
               <button
                 onClick={onClose}
                 className="flex-1 py-3 bg-red-600 text-white rounded-full"
@@ -286,15 +298,6 @@ const ProfileModal: React.FC<ProfileModalProps> = ({ id, onClose }) => {
                 Cancelar
               </button>
             </div>
-
-            {/* === NUEVO BOTÓN CHAT PREMIUM === */}
-            <button
-              onClick={handleChatPremium}
-              className="w-full py-3 bg-purple-600 text-white rounded-full font-medium mt-4"
-            >
-              Abrir Chat Exclusivo para Creadores de Tokens
-            </button>
-
           </>
         )}
 
