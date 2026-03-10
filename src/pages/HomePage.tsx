@@ -4,6 +4,7 @@ import FeedPage from './FeedPage';
 import { ThemeContext } from "../lib/ThemeContext";
 import ProfileModal from "../components/ProfileModal";
 import ActionButton from "../components/ActionButton";
+import ChatPage from "../components/ChatPage"; // <- Asegúrate de importar ChatPage
 
 const PAGE_SIZE = 8;
 
@@ -184,7 +185,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   };
 
   const openChatFromModal = (otherUserId: string) => {
-    setConversationId(otherUserId); 
+    setConversationId(otherUserId);
     setChatTargetId(otherUserId);
     setShowProfileModal(false);
   };
@@ -322,17 +323,23 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile.tier === "free"}
-          onOpenChat={openChatFromModal} // ✅ FIX APLICADO
+          onOpenChat={openChatFromModal} // ← FIXADO PARA OPCIÓN A
         />
       )}
 
-      {/* ChatPage single-page */}
+      {/* ChatPage como modal */}
       {conversationId && chatTargetId && (
-        <ChatPage
-          currentUserId={userId}
-          conversationId={conversationId}
-          otherUserId={chatTargetId}
-        />
+        <div className="fixed inset-0 z-50 bg-black/80 flex justify-center items-center">
+          <ChatPage
+            currentUserId={userId}
+            conversationId={conversationId}
+            otherUserId={chatTargetId}
+            onClose={() => {
+              setConversationId(null);
+              setChatTargetId(null);
+            }}
+          />
+        </div>
       )}
     </div>
   );
