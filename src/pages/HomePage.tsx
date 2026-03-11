@@ -162,26 +162,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
-  // 🔹 Abrir DM desde ProfileModal
-  const openChatFromModal = async (otherUserId: string) => {
-    if (!userId) return;
-
-    try {
-      // Buscar conversación entre los dos
-      const { data: existing } = await supabase
-        .from("conversations")
-        .select("*")
-        .or(`user1.eq.${userId},user2.eq.${userId}`)
-        .eq("user1", otherUserId)
-        .maybeSingle();
-
-      // Si no existe, creamos al enviar primer mensaje (no aquí)
-      setConversationId(existing?.id || null);
-      setChatTargetId(otherUserId);
-      setShowProfileModal(false);
-    } catch (err) {
-      console.error("Chat error:", err);
-    }
+  // 🔹 Abrir DM desde ProfileModal (solo DM)
+  const openChatFromModal = (otherUserId: string) => {
+    setChatTargetId(otherUserId);
+    setConversationId(null); // Se crea conversación al enviar primer mensaje
+    setShowProfileModal(false);
   };
 
   const handleRefresh = () => fetchPosts(true);
@@ -202,7 +187,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             className="px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 rounded-full"
           />
           <button
-            onClick={() => setShowProfileModal(true)} // Ahora abre modal aunque no haya conversaciones
+            onClick={() => {}}
             className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 rounded-full"
           >
             Chat
@@ -291,14 +276,14 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         />
       )}
 
-      {conversationId && chatTargetId && (
+      {chatTargetId && (
         <ChatPage
           currentUserId={userId}
           conversationId={conversationId}
           otherUserId={chatTargetId}
           onClose={() => {
-            setConversationId(null);
             setChatTargetId(null);
+            setConversationId(null);
           }}
         />
       )}
