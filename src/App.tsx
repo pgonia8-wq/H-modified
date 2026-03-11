@@ -79,8 +79,8 @@ walletLoading.current = true;
         const auth = await MiniKit.commandsAsync.walletAuth({
           nonce,
           requestId: "wallet-auth-" + Date.now(),
-          expirationTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-notBefore: new Date(Date.now() - 60 * 1000).toISOString(),
+          expirationTime: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          notBefore: new Date(Date.now() - 60 * 1000),
           statement: "Autenticar wallet para H humans",
         });
 
