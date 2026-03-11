@@ -41,7 +41,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const maxChars =
     profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
 
-  // 🔹 Fetch posts eficiente
+  // 🔹 Fetch posts eficiente con precarga
   const fetchPosts = useCallback(
     async (reset = false) => {
       if (loading || (!hasMore && !reset)) return;
@@ -49,7 +49,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       try {
         const currentPage = reset ? 0 : page;
-        const pagesToFetch = reset ? 2 : 1;
+        const pagesToFetch = reset ? 2 : 1; // precarga inicial 2 páginas
         let allNewPosts: any[] = [];
 
         for (let i = 0; i < pagesToFetch; i++) {
@@ -66,12 +66,15 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           allNewPosts = allNewPosts.concat(data || []);
         }
 
-        // ⚡ Mantener el dummy siempre al inicio
         setPosts((prev) => {
+          // ⚡ Mantener dummy siempre visible
           const newPosts = reset
             ? [DUMMY_POST, ...allNewPosts]
-            : [...prev.filter((p) => p.id !== "dummy-1"), ...allNewPosts];
-          if (!prev.some((p) => p.id === "dummy-1")) newPosts.unshift(DUMMY_POST);
+            : [
+                DUMMY_POST,
+                ...prev.filter((p) => p.id !== "dummy-1"),
+                ...allNewPosts,
+              ];
           return newPosts;
         });
 
@@ -180,7 +183,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const handleRefresh = () => fetchPosts(true);
 
   return (
-    <div className={`min-h-screen overflow-y-auto ${theme === "dark" ? "bg-black text-white" : "bg-white text-black"}`}>
+    <div
+      className={`min-h-screen overflow-y-auto ${
+        theme === "dark" ? "bg-black text-white" : "bg-white text-black"
+      }`}
+    >
       {/* Header sticky */}
       <header className="sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b border-white/10 bg-black/90 backdrop-blur-xl">
         Humans
@@ -192,15 +199,19 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           />
           <button
             onClick={() => alert("Abrir DM aquí")}
-            className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 rounded-full"
+            className="px-3 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 rounded-full"
           >
             Mensajes
           </button>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative cursor-pointer">
-            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">🔔</div>
-            <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">3</span>
+            <div className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center">
+              🔔
+            </div>
+            <span className="absolute -top-1 -right-1 bg-red-600 text-xs rounded-full px-1.5 py-0.5">
+              3
+            </span>
           </div>
           <div
             className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center font-bold cursor-pointer"
@@ -212,26 +223,30 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       </header>
 
       {/* Tirar para refrescar */}
-      <div className="text-center py-4 text-gray-400 text-sm cursor-pointer" onClick={handleRefresh}>
+      <div
+        className="text-center py-4 text-gray-400 text-sm cursor-pointer"
+        onClick={handleRefresh}
+      >
         Tirar para refrescar
       </div>
 
       {/* Feed centrado */}
-      <main className="w-full mx-auto">
-        <div className="w-full max-w-xl">
-          <FeedPage
-            posts={posts}
-            loading={loading}
-            error={error}
-            currentUserId={userId}
-            userTier={profile?.tier || "free"}
-            onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
-          />
+      <main className="w-full max-w-xl mx-auto">
+        <FeedPage
+          posts={posts}
+          loading={loading}
+          error={error}
+          currentUserId={userId}
+          userTier={profile?.tier || "free"}
+          onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
+        />
 
-          {/* Loader */}
-          <div ref={loaderRef} className="h-10 flex items-center justify-center text-gray-500 text-sm">
-            {loading ? "Cargando..." : hasMore ? "" : "No hay más posts"}
-          </div>
+        {/* Loader */}
+        <div
+          ref={loaderRef}
+          className="h-10 flex items-center justify-center text-gray-500 text-sm"
+        >
+          {loading ? "Cargando..." : hasMore ? "" : "No hay más posts"}
         </div>
       </main>
 
@@ -250,7 +265,9 @@ const HomePage = ({ userId }: { userId: string | null }) => {
               maxLength={maxChars}
             />
             <div className="flex justify-between mt-4 text-sm text-gray-400">
-              <span>{newPostContent.length} / {maxChars}</span>
+              <span>
+                {newPostContent.length} / {maxChars}
+              </span>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowNewPostModal(false)}
