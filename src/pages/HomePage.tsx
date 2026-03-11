@@ -8,11 +8,25 @@ import ActionButton from "../components/ActionButton";
 
 const PAGE_SIZE = 8;
 
+// Post de prueba
+const DUMMY_POST = {
+  id: "dummy-1",
+  user_id: "test-user",
+  content: "Este es un post de prueba.",
+  timestamp: new Date().toISOString(),
+  likes: 0,
+  comments: 0,
+  reposts: 0,
+  deleted_flag: false,
+  visibility_score: 1,
+};
+
 const HomePage = ({ userId }: { userId: string | null }) => {
   const { setUser } = useUser();
+  const { theme } = useContext(ThemeContext);
 
-  const [posts, setPosts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [posts, setPosts] = useState<any[]>([DUMMY_POST]); // Post de prueba inicial
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -22,23 +36,21 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [showNewPostModal, setShowNewPostModal] = useState(false);
   const [newPostContent, setNewPostContent] = useState("");
 
-  const { theme } = useContext(ThemeContext);
-
   const containerRef = useRef<HTMLDivElement | null>(null);
   const loaderRef = useRef<HTMLDivElement | null>(null);
 
   const maxChars =
     profile?.tier === "premium+" ? 10000 : profile?.tier === "premium" ? 4000 : 280;
 
-  // 🔹 Fetch posts con precarga inicial de 2 páginas
+  // 🔹 Fetch posts con precarga inicial y post dummy
   const fetchPosts = useCallback(
     async (reset = false) => {
       if (loading || (!hasMore && !reset)) return;
-
       setLoading(true);
+
       try {
         const currentPage = reset ? 0 : page;
-        const pagesToFetch = reset ? 2 : 1; // precarga inicial de 2 páginas
+        const pagesToFetch = reset ? 2 : 1; // precarga inicial 2 páginas
         let allNewPosts: any[] = [];
 
         for (let i = 0; i < pagesToFetch; i++) {
@@ -55,7 +67,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           allNewPosts = allNewPosts.concat(data || []);
         }
 
-        setPosts((prev) => (reset ? allNewPosts : [...prev, ...allNewPosts]));
+        // Mantener post dummy siempre al inicio
+        setPosts((prev) => reset ? [DUMMY_POST, ...allNewPosts] : [...prev, ...allNewPosts]);
         setHasMore(allNewPosts.length === PAGE_SIZE * pagesToFetch);
         setPage((prev) => (reset ? pagesToFetch : prev + pagesToFetch));
       } catch (err: any) {
@@ -116,16 +129,13 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
   // 🔹 IntersectionObserver para scroll infinito
   useEffect(() => {
-    if (!loaderRef.current || !containerRef.current) return;
+    if (!loaderRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries[0].isIntersecting) fetchPosts();
       },
-      {
-        root: containerRef.current,
-        rootMargin: "300px",
-      }
+      { root: null, rootMargin: "300px" } // usar viewport como root
     );
 
     observer.observe(loaderRef.current);
@@ -165,7 +175,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const handleRefresh = () => fetchPosts(true);
 
   return (
-    <div className={`${theme === "dark" ? "bg-black text-white" : "bg-white text-black"}`}>
+    <div className={`min-h-screen ${theme === "dark" ? "bg-black text-white" : "bg-white text-black"} overflow-y-auto`}>
       <header className="sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b border-white/10 bg-black/90 backdrop-blur-xl">
         Humans
         <div className="flex gap-3">
@@ -175,7 +185,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             className="px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 rounded-full"
           />
           <button
-            onClick={() => alert("Abrir modal DM aquí")}
+            onClick={() => alert("Abrir DM aquí")}
             className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 rounded-full"
           >
             Mensajes
@@ -199,24 +209,23 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         Tirar para refrescar
       </div>
 
-      {/* Contenedor scroll único */}
-      <main ref={containerRef} className="min-h-screen w-full overflow-y-auto">
-        <FeedPage
-          posts={posts}
-          loading={loading}
-          error={error}
-          currentUserId={userId}
-          userTier={profile?.tier || "free"}
-          onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
-        />
+      <main className="w-full flex justify-center px-2">
+        <div className="w-full max-w-xl">
+          <FeedPage
+            posts={posts}
+            loading={loading}
+            error={error}
+            currentUserId={userId}
+            userTier={profile?.tier || "free"}
+            onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
+          />
 
-        {/* Loader para scroll infinito */}
-        <div ref={loaderRef} className="h-10 flex items-center justify-center text-gray-500 text-sm">
-          {loading ? "Cargando..." : hasMore ? "" : "No hay más posts"}
+          <div ref={loaderRef} className="h-10 flex items-center justify-center text-gray-500 text-sm">
+            {loading ? "Cargando..." : hasMore ? "" : "No hay más posts"}
+          </div>
         </div>
       </main>
 
-      {/* Modal Nuevo Post */}
       {showNewPostModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg">
@@ -251,7 +260,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {/* Modal Perfil */}
       {showProfileModal && (
         <ProfileModal
           id={userId}
