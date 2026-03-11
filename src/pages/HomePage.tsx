@@ -55,7 +55,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         const newPosts = data || [];
         setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
         setHasMore(newPosts.length === PAGE_SIZE);
-
         setPage(reset ? 1 : page + 1);
       } catch (err: any) {
         console.error("[HOME] Error fetching posts:", err);
@@ -94,7 +93,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         });
 
         const result = await res.json();
-
         if (!result.success) throw new Error(result.error || "Error creando profile");
 
         setProfile(result.profile);
@@ -113,18 +111,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     if (userId) fetchOrCreateProfile(userId);
     fetchPosts(true);
   }, [userId, fetchOrCreateProfile, fetchPosts, setUser]);
-
-  // 🔹 Scroll listener (backup)
-  useEffect(() => {
-    const handleScroll = () => {
-      if (!containerRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-      if (scrollTop + clientHeight >= scrollHeight - 100) fetchPosts();
-    };
-
-    containerRef.current?.addEventListener("scroll", handleScroll);
-    return () => containerRef.current?.removeEventListener("scroll", handleScroll);
-  }, [fetchPosts]);
 
   // 🔹 IntersectionObserver para scroll infinito
   useEffect(() => {
@@ -176,28 +162,21 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
-  // 🔹 Abrir chat desde ProfileModal
+  // 🔹 Abrir DM desde ProfileModal
   const openChatFromModal = async (otherUserId: string) => {
     if (!userId) return;
 
     try {
-      let { data: conversation } = await supabase
+      // Buscar conversación entre los dos
+      const { data: existing } = await supabase
         .from("conversations")
         .select("*")
         .or(`user1.eq.${userId},user2.eq.${userId}`)
+        .eq("user1", otherUserId)
         .maybeSingle();
 
-      if (!conversation) {
-        const { data: newConv, error } = await supabase
-          .from("conversations")
-          .insert({ user1: userId, user2: otherUserId })
-          .select()
-          .single();
-        if (error) throw error;
-        conversation = newConv;
-      }
-
-      setConversationId(conversation.id);
+      // Si no existe, creamos al enviar primer mensaje (no aquí)
+      setConversationId(existing?.id || null);
       setChatTargetId(otherUserId);
       setShowProfileModal(false);
     } catch (err) {
@@ -223,7 +202,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             className="px-5 py-2 bg-gradient-to-r from-gray-800 to-gray-700 rounded-full"
           />
           <button
-            onClick={() => (window.location.href = "/chat")}
+            onClick={() => setShowProfileModal(true)} // Ahora abre modal aunque no haya conversaciones
             className="px-5 py-2 bg-gradient-to-r from-indigo-700 to-purple-700 rounded-full"
           >
             Chat
@@ -258,6 +237,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
           />
 
+          {/* Loader para IntersectionObserver */}
           <div
             ref={loaderRef}
             className="h-10 flex items-center justify-center text-gray-500 text-sm"
@@ -301,12 +281,12 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {showProfileModal && profile && (
+      {showProfileModal && (
         <ProfileModal
           id={userId}
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
-          showUpgradeButton={profile.tier === "free"}
+          showUpgradeButton={profile?.tier === "free"}
           onOpenChat={openChatFromModal}
         />
       )}
