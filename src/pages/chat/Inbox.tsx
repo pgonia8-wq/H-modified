@@ -1,4 +1,3 @@
-// src/pages/chat/Inbox.tsx
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../supabaseClient";
 import ChatWindow from "./ChatWindow";
@@ -39,6 +38,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   useEffect(() => {
     if (!currentUserId) return;
+
     loadConversations();
     loadMatches();
   }, [currentUserId]);
@@ -79,7 +79,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   };
 
   /* ----------------------------------------
-     Cargar contador de mensajes no leídos
+     Contador de mensajes no leídos
   ---------------------------------------- */
 
   const loadUnreadCounts = async (convs: Conversation[]) => {
@@ -88,7 +88,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
     const counts: Record<string, number> = {};
 
     for (const c of convs) {
-      const conversationId = [c.user1_id, c.user2_id].sort().join("-");
+
+      const conversationId =
+        [c.user1_id, c.user2_id].sort().join("-");
 
       const { count } = await supabase
         .from("messages")
@@ -139,7 +141,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   ---------------------------------------- */
 
   const loadProfiles = async (ids: string[]) => {
+
     const toLoad = ids.filter(id => !profilesCache[id]);
+
     if (toLoad.length === 0) return;
 
     try {
@@ -149,8 +153,13 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
         .in("id", toLoad);
 
       if (data) {
+
         const newCache = { ...profilesCache };
-        data.forEach(p => (newCache[p.id] = p));
+
+        data.forEach(p => {
+          newCache[p.id] = p;
+        });
+
         setProfilesCache(newCache);
       }
 
@@ -160,10 +169,11 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   };
 
   /* ----------------------------------------
-     Búsqueda usuarios
+     Buscar usuarios (solo matches)
   ---------------------------------------- */
 
   const handleSearch = async (query: string) => {
+
     setSearchQuery(query);
 
     if (!currentUserId || !query.trim()) {
@@ -172,6 +182,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
     }
 
     try {
+
       const { data, error } = await supabase
         .from("profiles")
         .select("id,name,username,avatar_url")
@@ -180,15 +191,22 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
       if (error) throw error;
 
-      const filtered = (data || []).filter(u => matchIds.includes(u.id));
+      const filtered = (data || []).filter(u =>
+        matchIds.includes(u.id)
+      );
 
       setSearchResults(filtered);
 
       const newCache = { ...profilesCache };
-      filtered.forEach(u => (newCache[u.id] = u));
+
+      filtered.forEach(u => {
+        newCache[u.id] = u;
+      });
+
       setProfilesCache(newCache);
 
     } catch (err: any) {
+
       console.error("[INBOX] Error buscando usuarios:", err.message);
       setSearchResults([]);
     }
@@ -199,30 +217,44 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   ---------------------------------------- */
 
   const renderProfile = (id: string) => {
+
     const p = profilesCache[id];
 
     return (
+
       <div className="flex items-center gap-2">
+
         <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white overflow-hidden">
+
           {p?.avatar_url ? (
+
             <img
               src={p.avatar_url}
               className="w-full h-full object-cover"
             />
+
           ) : (
+
             p?.name?.[0] || p?.username?.[0]
+
           )}
+
         </div>
 
         <div className="text-white text-sm">
+
           {p?.username || id.slice(0, 10)}
+
         </div>
 
         {newMatches.includes(id) && (
+
           <span className="ml-1 px-1.5 py-0.5 bg-green-500 text-xs rounded">
             nuevo
           </span>
+
         )}
+
       </div>
     );
   };
@@ -232,135 +264,158 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   ---------------------------------------- */
 
   if (chatUserId && currentUserId) {
+
+    setNewMatches(prev => prev.filter(id => id !== chatUserId));
+
     return (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-2">
-        <div className="bg-gray-900 rounded-2xl p-4 w-full max-w-md border border-white/10 h-[80vh] flex flex-col">
 
-          <ChatWindow
-            currentUserId={currentUserId}
-            otherUserId={chatUserId}
-            onBack={() => setChatUserId(null)}
-          />
+      <ChatWindow
+        currentUserId={currentUserId}
+        otherUserId={chatUserId}
+        onBack={() => setChatUserId(null)}
+      />
 
-        </div>
-      </div>
     );
   }
 
   /* ----------------------------------------
-     UI Inbox
+     UI
   ---------------------------------------- */
 
   if (!currentUserId) {
+
     return (
+
       <div className="p-4 text-gray-400 text-center">
         No hay usuario logueado
       </div>
+
     );
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 px-2">
-      <div className="bg-gray-900 rounded-2xl p-4 w-full max-w-md border border-white/10 h-[80vh] flex flex-col">
 
-        {/* Header */}
+    <div className="w-full h-full flex flex-col">
 
-        <div className="flex justify-between items-center mb-3">
-          <h2 className="text-white font-bold text-lg">Mensajes</h2>
+      {/* Header */}
 
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-white"
-          >
-            Cerrar
-          </button>
-        </div>
+      <div className="flex justify-between items-center mb-3">
 
-        {/* Buscador */}
+        <h2 className="text-white font-bold text-lg">
+          Mensajes
+        </h2>
 
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
-          placeholder="Buscar seguidores..."
-          className="w-full mb-2 p-2 rounded bg-gray-800 text-white focus:outline-none"
-        />
-
-        {/* Resultados búsqueda */}
-
-        {searchResults.length > 0 && (
-          <div className="mb-2 max-h-40 overflow-y-auto">
-            {searchResults.map(u => (
-              <div
-                key={u.id}
-                onClick={() => setChatUserId(u.id)}
-                className="flex items-center p-2 cursor-pointer hover:bg-gray-700 rounded"
-              >
-                {renderProfile(u.id)}
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Lista conversaciones */}
-
-        <div className="flex-1 overflow-y-auto mb-2">
-
-          {loading ? (
-
-            <p className="text-gray-400 text-center mt-4">
-              Cargando conversaciones...
-            </p>
-
-          ) : conversations.length === 0 ? (
-
-            <p className="text-gray-400 text-center mt-4">
-              No hay conversaciones aún
-            </p>
-
-          ) : (
-
-            conversations.map(c => {
-
-              const otherId =
-                c.user1_id === currentUserId
-                  ? c.user2_id
-                  : c.user1_id;
-
-              const conversationId =
-                [c.user1_id, c.user2_id].sort().join("-");
-
-              const unread = unreadCounts[conversationId] || 0;
-
-              return (
-                <div
-                  key={c.id}
-                  onClick={() => setChatUserId(otherId)}
-                  className="flex items-center justify-between p-2 bg-gray-800 rounded mb-1 cursor-pointer hover:bg-gray-700"
-                >
-                  {renderProfile(otherId)}
-
-                  <div className="flex items-center gap-2">
-
-                    {unread > 0 && (
-                      <span className="bg-red-600 text-xs px-2 py-0.5 rounded-full text-white">
-                        {unread}
-                      </span>
-                    )}
-
-                    <div className="text-gray-400 text-sm">
-                      {c.last_message}
-                    </div>
-
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+        <button
+          onClick={onClose}
+          className="text-gray-400 hover:text-white"
+        >
+          Cerrar
+        </button>
 
       </div>
+
+      {/* Buscador */}
+
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => handleSearch(e.target.value)}
+        placeholder="Buscar seguidores..."
+        className="w-full mb-3 p-2 rounded bg-gray-800 text-white focus:outline-none"
+      />
+
+      {/* Resultados búsqueda */}
+
+      {searchResults.length > 0 && (
+
+        <div className="mb-2 max-h-40 overflow-y-auto">
+
+          {searchResults.map(u => (
+
+            <div
+              key={u.id}
+              onClick={() => setChatUserId(u.id)}
+              className="flex items-center p-2 cursor-pointer hover:bg-gray-700 rounded"
+            >
+
+              {renderProfile(u.id)}
+
+            </div>
+
+          ))}
+
+        </div>
+
+      )}
+
+      {/* Conversaciones */}
+
+      <div className="flex-1 overflow-y-auto">
+
+        {loading ? (
+
+          <p className="text-gray-400 text-center mt-4">
+            Cargando conversaciones...
+          </p>
+
+        ) : conversations.length === 0 ? (
+
+          <p className="text-gray-400 text-center mt-4">
+            No hay conversaciones aún
+          </p>
+
+        ) : (
+
+          conversations.map(c => {
+
+            const otherId =
+              c.user1_id === currentUserId
+                ? c.user2_id
+                : c.user1_id;
+
+            const conversationId =
+              [c.user1_id, c.user2_id].sort().join("-");
+
+            const unread = unreadCounts[conversationId] || 0;
+
+            return (
+
+              <div
+                key={c.id}
+                onClick={() => setChatUserId(otherId)}
+                className="flex items-center justify-between p-2 bg-gray-800 rounded mb-1 cursor-pointer hover:bg-gray-700"
+              >
+
+                {renderProfile(otherId)}
+
+                <div className="flex items-center gap-2">
+
+                  {unread > 0 && (
+
+                    <span className="bg-red-600 text-xs px-2 py-0.5 rounded-full text-white">
+                      {unread}
+                    </span>
+
+                  )}
+
+                  <div className="text-gray-400 text-sm">
+                    {c.last_message}
+                  </div>
+
+                </div>
+
+              </div>
+
+            );
+
+          })
+
+        )}
+
+      </div>
+
     </div>
+
   );
 };
 
