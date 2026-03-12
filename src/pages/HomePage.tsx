@@ -55,7 +55,14 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       const { data, error } = await supabase
         .from("posts")
-        .select("*")
+        .select(`
+          *,
+          profiles (
+            id,
+            username,
+            avatar_url
+          )
+        `)
         .order("timestamp", { ascending: false })
         .range(from, to);
 
@@ -105,6 +112,49 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
     fetchProfile();
     fetchPosts(true);
+
+  }, [userId]);
+
+  /* ------------------------------
+     AVATAR UPDATED EVENT
+  ------------------------------ */
+
+  useEffect(() => {
+
+    const handler = (e: any) => {
+
+      const { userId: changedId, avatarUrl } = e.detail;
+
+      /* actualizar header */
+
+      if (changedId === userId) {
+        setProfile((prev: any) => ({
+          ...prev,
+          avatar_url: avatarUrl
+        }));
+      }
+
+      /* actualizar feed */
+
+      setPosts(prev =>
+        prev.map(post =>
+          post.user_id === changedId
+            ? {
+                ...post,
+                profiles: {
+                  ...post.profiles,
+                  avatar_url: avatarUrl
+                }
+              }
+            : post
+        )
+      );
+
+    };
+
+    window.addEventListener("avatarUpdated", handler);
+
+    return () => window.removeEventListener("avatarUpdated", handler);
 
   }, [userId]);
 
@@ -310,10 +360,21 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
 
         <div
-          className="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center cursor-pointer"
+          className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 cursor-pointer"
           onClick={() => setShowProfileModal(true)}
         >
-          H
+
+          {profile?.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center">
+              H
+            </div>
+          )}
+
         </div>
 
       </header>
