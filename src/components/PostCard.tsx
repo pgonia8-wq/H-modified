@@ -14,23 +14,41 @@ const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { theme } = useContext(ThemeContext);
 
+  // Estados principales
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
   const [comments, setComments] = useState(post.comments || 0);
   const [reposts, setReposts] = useState(post.reposts || 0);
   const [commentInput, setCommentInput] = useState("");
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | null>(null);
+  const [loadingAction, setLoadingAction] = useState<
+    "like" | "comment" | "repost" | "tip" | "boost" | "follow" | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
-
-  // NUEVOS STATES para comentarios
+  // Estados para comentarios
   const [showComments, setShowComments] = useState(false);
   const [commentsList, setCommentsList] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
 
-  // Real-time para likes, comments, reposts
+  const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
+
+  // Verifica si el usuario ya dio like
+  useEffect(() => {
+    if (!currentUserId || !post.id) return;
+    const checkLike = async () => {
+      const { data } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
+      setLiked(!!data);
+    };
+    checkLike();
+  }, [currentUserId, post.id]);
+
+  // Real-time likes, comments, reposts
   useEffect(() => {
     if (!post.id) return;
 
@@ -40,17 +58,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "posts", filter: `id=eq.${post.id}` },
         (payload) => {
-          if (payload.new.likes !== likes) setLikes(payload.new.likes);
-          if (payload.new.comments !== comments) setComments(payload.new.comments);
-          if (payload.new.reposts !== reposts) setReposts(payload.new.reposts);
+          setLikes(payload.new.likes);
+          setComments(payload.new.comments);
+          setReposts(payload.new.reposts);
         }
       )
       .subscribe();
 
     return () => supabase.removeChannel(channel);
-  }, [post.id, likes, comments, reposts]);
+  }, [post.id]);
 
-  // NUEVO: fetch de comentarios cuando se abre la lista
+  // Fetch comentarios cuando se abre el modal
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
@@ -78,12 +96,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           setLoadingComments(false);
         }
       };
-
       fetchComments();
     }
   }, [showComments, post.id]);
 
-  // NUEVO handleLike con tabla intermedia likes
+  // Funciones de acción
   const handleLike = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     setLoadingAction("like");
@@ -123,12 +140,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("comment");
 
     try {
-      await supabase.from("comments").insert({
+      const { error } = await supabase.from("comments").insert({
         post_id: post.id,
         user_id: currentUserId,
         content: commentInput.trim(),
         timestamp: new Date().toISOString(),
       });
+      if (error) throw error;
 
       await supabase.from("posts").update({ comments: comments + 1 }).eq("id", post.id);
 
@@ -149,11 +167,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("repost");
 
     try {
-      await supabase.from("reposts").insert({
+      const { error } = await supabase.from("reposts").insert({
         post_id: post.id,
         user_id: currentUserId,
         timestamp: new Date().toISOString(),
       });
+      if (error) throw error;
 
       await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
       setReposts(reposts + 1);
@@ -176,9 +195,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         currency: "WLD",
         recipient: RECEIVER,
       });
-
       if (payRes.status !== "success") throw new Error("Pago fallido");
-
       alert("¡Tip enviado!");
     } catch (err: any) {
       setError("Error en tip: " + err.message);
@@ -199,9 +216,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         currency: "WLD",
         recipient: RECEIVER,
       });
-
       if (payRes.status !== "success") throw new Error("Pago fallido");
-
       alert("¡Boost enviado!");
     } catch (err: any) {
       setError("Error en boost: " + err.message);
@@ -211,8 +226,91 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   return (
-    <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
-      {/* …todo tu código existente para avatar, contenido y botones de acción … */}
+    <div
+      className={`p-4 rounded-xl ${
+        theme === "dark" ? "bg-gray-900" : "bg-gray-100"
+      } border border-gray-700 mb-4 shadow-md`}
+    >
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-3">
+        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600">
+          {post.profiles?.avatar_url ? (
+            <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
+              {post.profiles?.username?.[0]?.toUpperCase() || "?"}
+            </div>
+          )}
+        </div>
+
+        <div className="flex-1">
+          <p className="font-bold text-lg">
+            {post.profiles?.username || `@anon-${post.user_id.slice(0, 8)}`}
+          </p>
+          <p className="text-sm text-gray-500">@{post.user_id.slice(0, 8)}</p>
+        </div>
+
+        {currentUserId && currentUserId !== post.user_id && (
+          <button
+            onClick={toggleFollow}
+            className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
+              isFollowing
+                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                : "bg-purple-600 text-white hover:bg-purple-700"
+            }`}
+          >
+            {isFollowing ? "Siguiendo" : "Seguir"}
+          </button>
+        )}
+      </div>
+
+      {/* Contenido */}
+      <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">{post.content}</p>
+
+      {/* Acciones */}
+      <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
+        <div className="flex gap-8">
+          <button
+            onClick={handleLike}
+            disabled={loadingAction === "like"}
+            className={`flex items-center gap-1 transition ${liked ? "text-red-500" : "hover:text-red-500"}`}
+          >
+            {liked ? "❤️" : "♡"} {likes}
+          </button>
+
+          <button
+            onClick={() => setShowCommentInput(!showCommentInput)}
+            className="flex items-center gap-1 hover:text-blue-500 transition"
+          >
+            💬 {comments}
+          </button>
+
+          <button
+            onClick={handleRepost}
+            disabled={loadingAction === "repost"}
+            className="flex items-center gap-1 hover:text-green-500 transition"
+          >
+            🔁 {reposts}
+          </button>
+        </div>
+
+        <div className="flex gap-3">
+          <button
+            onClick={handleTip}
+            disabled={loadingAction === "tip"}
+            className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 transition disabled:opacity-50"
+          >
+            Tip 1 WLD
+          </button>
+          <button
+            onClick={handleBoost}
+            disabled={loadingAction === "boost"}
+            className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
+          >
+            Boost 5 WLD
+          </button>
+        </div>
+      </div>
 
       {/* Input comentario */}
       {showCommentInput && (
@@ -234,7 +332,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Lista de comentarios */}
+      {/* Modal de comentarios */}
       {comments > 0 && (
         <div className="mt-4">
           <button
@@ -254,7 +352,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
                     <p className="font-bold">
-                      {c.profiles?.username || `@anon-${c.user_id.slice(0,8)}`}
+                      {c.profiles?.username || `@anon-${c.user_id.slice(0, 8)}`}
                     </p>
                     <p className="text-gray-300">{c.content}</p>
                     <p className="text-xs text-gray-500 mt-1">
