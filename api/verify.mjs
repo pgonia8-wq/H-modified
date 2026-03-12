@@ -1,9 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
+import { verifyCloudProof } from "@worldcoin/idkit-core";
 
 const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+const APP_ID = "app_6a98c88249208506dcd4e04b529111fc"; // Tu App ID real
 
 export default async function handler(req, res) {
   console.log("[BACKEND] Verificando World ID...");
@@ -16,68 +19,84 @@ export default async function handler(req, res) {
   const body = req.body || {};
   const { payload } = body;
 
-  if (!payload || !payload.nullifier_hash || !payload.proof || !payload.merkle_root || !payload.verification_level) {
-    console.error("[BACKEND] Faltan campos en proof:", body);
-    return res.status(400).json({ success: false, error: "Faltan campos en proof" });
+  if (!payload) {
+    console.log("[BACKEND] No se recibió payload");
+    return res.status(400).json({ success: false, error: "No payload received" });
   }
 
-  const nullifierHash = payload.nullifier_hash;
-  console.log("[BACKEND] nullifier_hash recibido:", nullifierHash);
-
-  // Verificar en Worldcoin API (agregamos action requerido)
-  let verifyData;
   try {
-    const verifyResponse = await fetch(
-      "https://developer.worldcoin.org/api/v2/verify/app_6a98c88249208506dcd4e04b529111fc",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "verify-user",  // ← CAMBIO CLAVE: campo requerido agregado
-          merkle_root: payload.merkle_root,
-          proof: payload.proof,
-          nullifier_hash: nullifierHash,
-          verification_level: payload.verification_level,
-        }),
-      }
+    // 1. Validar el proof con Worldcoin
+    const cloudProof = {
+      merkle_root: payload.merkle_root,
+      nullifier_hash: payload.nullifier_hash,
+      proof: payload.proof,
+      credential_type: payload.credential_type,
+    };
+
+    const verification = await verifyCloudProof(
+      cloudProof,
+      APP_ID,
+      "verify-user" // debe coincidir exactamente con la action que usas en frontend
     );
 
-    verifyData = await verifyResponse.json();
-    console.log("[BACKEND] Respuesta de Worldcoin:", verifyData);
-
-    if (!verifyResponse.ok || !verifyData.success) {
-      console.error("[BACKEND] Worldcoin rechazó:", verifyData);
-      return res.status(verifyResponse.status || 400).json({ success: false, error: verifyData.detail || "Verificación fallida en Worldcoin" });
+    if (!verification.success) {
+      console.log("[BACKEND] Proof inválido:", verification);
+      return res.status(400).json({
+        success: false,
+        error: "Invalid proof",
+        details: verification.code || verification.detail,
+      });
     }
-  } catch (err) {
-    console.error("[BACKEND] Error al verificar con Worldcoin:", err);
-    return res.status(500).json({ success: false, error: "Error al contactar Worldcoin" });
-  }
 
-  // Guardar/actualizar en profiles (upsert)
-  try {
-    const { error: upsertError } = await supabase
+    const nullifierHash = payload.nullifier_hash;
+
+    // 2. Intentar obtener perfil existente
+    const { data: existing, error: selectError } = await supabase
       .from("profiles")
-      .upsert(
-        {
+      .select("*")
+      .eq("id", nullifierHash)
+      .maybeSingle();
+
+    if (selectError) throw selectError;
+
+    let profile = existing;
+
+    // 3. Si no existe → crear
+    if (!profile) {
+      console.log("[BACKEND] No existe profile, creando...");
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("profiles")
+        .insert({
           id: nullifierHash,
           tier: "free",
-          verified: true,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'id' }
-      );
+          username: `@anon-${nullifierHash.slice(0, 8)}`, // fallback inicial
+          avatar_url: "",
+          created_at: new Date().toISOString(),
+          profile_visible: true,
+        })
+        .select()
+        .single();
 
-    if (upsertError) {
-      console.error("[BACKEND] Error upsert profiles:", upsertError);
-      return res.status(500).json({ success: false, error: upsertError.message });
+      if (insertError) throw insertError;
+
+      profile = inserted;
+      console.log("[BACKEND] Perfil creado:", profile.id);
+    } else {
+      console.log("[BACKEND] Perfil existente encontrado:", profile.id);
     }
 
-    console.log("[BACKEND] Perfil creado/actualizado:", nullifierHash);
-  } catch (err) {
-    console.error("[BACKEND] Supabase profiles error:", err);
-    return res.status(500).json({ success: false, error: "Error al guardar perfil" });
+    // 4. Devolver perfil completo al frontend
+    return res.status(200).json({
+      success: true,
+      nullifier_hash: nullifierHash,
+      profile,
+    });
+  } catch (err: any) {
+    console.error("[BACKEND] Error completo:", err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || "Error interno al procesar verificación",
+    });
   }
-
-  return res.status(200).json({ success: true, nullifier_hash: nullifierHash });
-        }
+}
