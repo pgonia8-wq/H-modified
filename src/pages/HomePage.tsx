@@ -22,7 +22,6 @@ const DUMMY_POST = {
 };
 
 const HomePage = ({ userId }: { userId: string | null }) => {
-
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -31,6 +30,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [hasMore, setHasMore] = useState(true);
 
   const [profile, setProfile] = useState<any>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
@@ -51,18 +51,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       ? 4000
       : 280;
 
-  /* ------------------------------
-     FETCH POSTS
-  ------------------------------ */
-
+  // Fetch posts
   const fetchPosts = useCallback(async (reset = false) => {
-
     if (!hasMore && !reset) return;
-
     try {
-
       setLoading(true);
-
       const from = reset ? 0 : page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
@@ -82,34 +75,22 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       if (error) throw error;
 
       const newPosts = data || [];
-
-      setPosts(prev => reset ? newPosts : [...prev, ...newPosts]);
-
+      setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
       setHasMore(newPosts.length === PAGE_SIZE);
-
       if (reset) setPage(1);
-      else setPage(prev => prev + 1);
-
+      else setPage((prev) => prev + 1);
     } catch (err: any) {
-
-      console.error(err);
+      console.error("Error fetching posts:", err);
       setError(err.message);
-
     } finally {
-
       setLoading(false);
-
     }
-
   }, [page, hasMore]);
 
-  /* ------------------------------
-     FETCH OR CREATE PROFILE
-  ------------------------------ */
-
+  // Fetch or create profile
   const fetchOrCreateProfile = useCallback(async (uid: string) => {
     if (!uid) return;
-
+    setProfileLoading(true);
     try {
       const { data, error: selectError } = await supabase
         .from("profiles")
@@ -121,6 +102,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
       if (data) {
         setProfile(data);
+        setProfileLoading(false);
         return;
       }
 
@@ -139,75 +121,36 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     } catch (err: any) {
       console.error("[HOME] Profile error:", err);
       setError(err.message);
+    } finally {
+      setProfileLoading(false);
     }
   }, []);
 
-  // 🔹 Init user & profile
+  // Init
   useEffect(() => {
     if (!userId) return;
-
     fetchOrCreateProfile(userId);
     fetchPosts(true);
   }, [userId, fetchOrCreateProfile, fetchPosts]);
 
-  /* ------------------------------
-     AVATAR UPDATED EVENT
-  ------------------------------ */
-
+  // Real-time: nuevos posts + actualizaciones (likes, etc.)
   useEffect(() => {
-
-    const handler = (e: any) => {
-
-      const { userId: changedId, avatarUrl } = e.detail;
-
-      if (changedId === userId) {
-        setProfile((prev: any) => ({
-          ...prev,
-          avatar_url: avatarUrl
-        }));
-      }
-
-      setPosts(prev =>
-        prev.map(post =>
-          post.user_id === changedId
-            ? {
-                ...post,
-                profiles: {
-                  ...post.profiles,
-                  avatar_url: avatarUrl
-                }
-              }
-            : post
-        )
-      );
-
-    };
-
-    window.addEventListener("avatarUpdated", handler);
-
-    return () => window.removeEventListener("avatarUpdated", handler);
-
-  }, [userId]);
-
-  /* ------------------------------
-     REALTIME POSTS
-  ------------------------------ */
-
-  useEffect(() => {
-
     const channel = supabase
       .channel("realtime-posts")
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "posts"
-        },
+        { event: "INSERT", schema: "public", table: "posts" },
         (payload) => {
-
-          setPosts(prev => [payload.new, ...prev]);
-
+          setPosts((prev) => [payload.new, ...prev]);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posts" },
+        (payload) => {
+          setPosts((prev) =>
+            prev.map((post) => (post.id === payload.new.id ? payload.new : post))
+          );
         }
       )
       .subscribe();
@@ -215,61 +158,36 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-
   }, []);
 
-  /* ------------------------------
-     SCROLL INFINITO
-  ------------------------------ */
-
+  // Scroll infinito
   useEffect(() => {
-
     const handleScroll = () => {
-
       if (!containerRef.current) return;
-
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-
       if (scrollTop + clientHeight >= scrollHeight - 150) {
         fetchPosts();
       }
-
     };
-
     const el = containerRef.current;
-
     el?.addEventListener("scroll", handleScroll);
-
     return () => el?.removeEventListener("scroll", handleScroll);
-
   }, [fetchPosts]);
 
-  /* ------------------------------
-     CONTADOR MENSAJES
-  ------------------------------ */
-
+  // Contador mensajes no leídos
   const loadUnread = async () => {
-
     if (!userId) return;
-
     const { count } = await supabase
       .from("messages")
       .select("*", { count: "exact", head: true })
       .eq("receiver_id", userId)
       .eq("read_flag", false);
-
     setUnreadMessages(count || 0);
-
   };
 
-  /* ------------------------------
-     REALTIME MENSAJES
-  ------------------------------ */
-
+  // Real-time mensajes
   useEffect(() => {
-
     if (!userId) return;
-
     loadUnread();
 
     const channel = supabase
@@ -280,30 +198,17 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           event: "INSERT",
           schema: "public",
           table: "messages",
-          filter: `receiver_id=eq.${userId}`
+          filter: `receiver_id=eq.${userId}`,
         },
-        () => {
-
-          setUnreadMessages(prev => prev + 1);
-
-        }
+        () => setUnreadMessages((prev) => prev + 1)
       )
       .subscribe();
 
-    return () => {
-
-      supabase.removeChannel(channel);
-
-    };
-
+    return () => supabase.removeChannel(channel);
   }, [userId]);
 
-  /* ------------------------------
-     CREAR POST
-  ------------------------------ */
-
+  // Crear post
   const handleCreatePost = async () => {
-
     if (!newPostContent.trim()) {
       alert("Escribe algo antes de publicar");
       return;
@@ -314,50 +219,37 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       return;
     }
 
-    const { error } = await supabase
-      .from("posts")
-      .insert({
-        user_id: userId,
-        content: newPostContent.trim(),
-        timestamp: new Date().toISOString(),
-        deleted_flag: false,
-        visibility_score: 1
-      });
+    const { error } = await supabase.from("posts").insert({
+      user_id: userId,
+      content: newPostContent.trim(),
+      timestamp: new Date().toISOString(),
+      deleted_flag: false,
+      visibility_score: 1,
+    });
 
     if (error) {
-      alert(error.message);
+      alert("Error al publicar: " + error.message);
       return;
     }
 
     setShowNewPostModal(false);
     setNewPostContent("");
-    fetchPosts(true);  // Refresca feed
-
+    fetchPosts(true); // Refresca feed
   };
 
-  /* ------------------------------
-     UI
-  ------------------------------ */
-
+  // UI
   return (
-
     <div
       ref={containerRef}
       className={`min-h-screen overflow-y-auto ${
-        theme === "dark"
-          ? "bg-black text-white"
-          : "bg-white text-black"
+        theme === "dark" ? "bg-black text-white" : "bg-white text-black"
       }`}
     >
-
-      {/* HEADER */}
-
+      {/* Header */}
       <header className="sticky top-0 z-20 w-full px-4 py-3 flex items-center justify-between border-b border-white/10 backdrop-blur-xl">
-
-        <img src="/logo.png" className="w-11 h-11 object-contain"/>
+        <img src="/logo.png" className="w-11 h-11 object-contain" alt="Logo" />
 
         <div className="flex gap-3">
-
           <ActionButton
             label="Post"
             onClick={() => setShowNewPostModal(true)}
@@ -371,87 +263,86 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             }}
             className="relative px-5 py-2 bg-indigo-700 rounded-full"
           >
-
             Mensajes
-
             {unreadMessages > 0 && (
               <span className="absolute -top-1 -right-1 bg-red-600 text-xs px-2 rounded-full">
                 {unreadMessages}
               </span>
             )}
-
           </button>
 
-          <button
-            onClick={toggleTheme}
-            className="px-4 py-2 bg-gray-700 rounded-full"
-          >
+          <button onClick={toggleTheme} className="px-4 py-2 bg-gray-700 rounded-full">
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
-
         </div>
 
         <div
           className="w-10 h-10 rounded-full overflow-hidden bg-gray-800 cursor-pointer"
           onClick={() => setShowProfileModal(true)}
         >
-
           {profile?.avatar_url ? (
-            <img
-              src={profile.avatar_url}
-              className="w-full h-full object-cover"
-            />
+            <img src={profile.avatar_url} className="w-full h-full object-cover" alt="Avatar" />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              H
-            </div>
+            <div className="w-full h-full flex items-center justify-center">H</div>
           )}
-
         </div>
-
       </header>
 
-      {/* FEED */}
+      {/* Pull to refresh */}
+      <div
+        className="text-center py-4 text-gray-400 text-sm flex items-center justify-center gap-2 cursor-pointer"
+        onClick={() => fetchPosts(true)}
+      >
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Tirar para refrescar
+      </div>
 
+      {/* Feed */}
       <main className="w-full px-2 py-6 flex justify-center">
-
-        <FeedPage
-          posts={posts}
-          loading={loading}
-          error={error}
-          currentUserId={userId}
-          userTier={profile?.tier || "free"}
-          onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
-        />
-
+        {loading && posts.length === 0 ? (
+          <div className="text-center py-10">
+            <p className="text-gray-400">Cargando posts...</p>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="text-center py-10 text-gray-400">
+            <p>No hay posts todavía</p>
+            <button
+              onClick={() => setShowNewPostModal(true)}
+              className="mt-4 bg-purple-600 px-6 py-2 rounded-full text-white"
+            >
+              ¡Publica el primero!
+            </button>
+          </div>
+        ) : (
+          <FeedPage
+            posts={posts}
+            loading={loading}
+            error={error}
+            currentUserId={userId}
+            userTier={profile?.tier || "free"}
+            onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
+          />
+        )}
       </main>
 
-      {/* INBOX */}
-
+      {/* Inbox */}
       {showInbox && userId && (
-
-        <Inbox
-          currentUserId={userId}
-          onClose={() => setShowInbox(false)}
-        />
-
+        <Inbox currentUserId={userId} onClose={() => setShowInbox(false)} />
       )}
 
-      {/* PROFILE */}
-
+      {/* Perfil */}
       {showProfileModal && (
-
         <ProfileModal
           id={userId}
           currentUserId={userId}
           onClose={() => setShowProfileModal(false)}
           showUpgradeButton={profile?.tier === "free"}
         />
-
       )}
 
-      {/* MODAL NUEVO POST (INLINE - Opción 1) */}
-
+      {/* Modal Nuevo Post */}
       {showNewPostModal && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
@@ -487,11 +378,8 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           </div>
         </div>
       )}
-
     </div>
-
   );
-
 };
 
 export default HomePage;
