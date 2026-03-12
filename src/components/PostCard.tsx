@@ -20,21 +20,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [reposts, setReposts] = useState(post.reposts || 0);
   const [commentInput, setCommentInput] = useState("");
   const [showCommentInput, setShowCommentInput] = useState(false);
-  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  // --- Nuevos states para comentarios ---
   const [showComments, setShowComments] = useState(false);
   const [commentsList, setCommentsList] = useState<any[]>([]);
   const [loadingComments, setLoadingComments] = useState(false);
-
-  // --- Tip / Boost modal ---
-  const [tipAmount, setTipAmount] = useState(1);
-  const [boostAmount, setBoostAmount] = useState(5);
+  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
-  // --- Real-time para likes, comments, reposts ---
+  // Real-time para likes, comments, reposts
   useEffect(() => {
     if (!post.id) return;
 
@@ -54,7 +48,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // --- Fetch de comentarios respetando RLS ---
+  // Cargar comentarios
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
@@ -64,7 +58,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             .from("comments")
             .select(`
               *,
-              profiles:profiles_id_fkey (
+              profiles (
                 id,
                 username,
                 avatar_url
@@ -82,12 +76,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           setLoadingComments(false);
         }
       };
-
       fetchComments();
     }
   }, [showComments, post.id]);
 
-  // --- Manejo de Like con tabla likes ---
   const handleLike = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     setLoadingAction("like");
@@ -175,53 +167,71 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // --- Confirm Tip ---
-  const confirmTip = async () => {
+  const handleTip = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    if (!confirm(`¿Enviar ${tipAmount} WLD como tip?`)) return;
+
+    setLoadingAction("tip");
+
     try {
-      const res = await MiniKit.commandsAsync.pay({
-        reference: `tip-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(tipAmount, Tokens.WLD).toString() }],
-        description: "Tip a post",
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: tipAmount,
+        currency: "WLD",
+        recipient: RECEIVER,
       });
 
-      if (res?.finalPayload?.status === "success") {
+      if (payRes?.finalPayload?.status === "success") {
         alert("¡Tip enviado!");
       } else {
-        alert("Pago fallido");
+        alert("Pago cancelado o fallido");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el pago");
+    } catch (err: any) {
+      setError("Error en tip: " + err.message);
+    } finally {
+      setLoadingAction(null);
     }
   };
 
-  // --- Confirm Boost ---
-  const confirmBoost = async () => {
+  const handleBoost = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    if (!confirm(`¿Enviar ${boostAmount} WLD como boost?`)) return;
+
+    setLoadingAction("boost");
+
     try {
-      const res = await MiniKit.commandsAsync.pay({
-        reference: `boost-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(boostAmount, Tokens.WLD).toString() }],
-        description: "Boost a post",
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: boostAmount,
+        currency: "WLD",
+        recipient: RECEIVER,
       });
 
-      if (res?.finalPayload?.status === "success") {
+      if (payRes?.finalPayload?.status === "success") {
         alert("¡Boost enviado!");
       } else {
-        alert("Pago fallido");
+        alert("Pago cancelado o fallido");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el pago");
+    } catch (err: any) {
+      setError("Error en boost: " + err.message);
+    } finally {
+      setLoadingAction(null);
     }
+  };
+
+  const openUserProfile = () => {
+    // Abre modal perfil del usuario del post (puedes pasar post.user_id)
+    window.dispatchEvent(
+      new CustomEvent("openProfile", { detail: { userId: post.user_id } })
+    );
   };
 
   return (
     <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
       {/* Header del post */}
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600">
+        <div
+          className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600 cursor-pointer"
+          onClick={openUserProfile}
+        >
           {post.profiles?.avatar_url ? (
             <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
           ) : (
@@ -236,6 +246,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             {post.profiles?.username || `@anon-${post.user_id.slice(0, 8)}`}
           </p>
           <p className="text-sm text-gray-500">@{post.user_id.slice(0, 8)}</p>
+          <p className="text-xs text-gray-400">
+            {new Date(post.timestamp).toLocaleString("es-ES", {
+              hour: "2-digit",
+              minute: "2-digit",
+              day: "numeric",
+              month: "short",
+            })}
+          </p>
         </div>
 
         {/* Botón Seguir */}
@@ -259,7 +277,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Acciones */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
         <div className="flex gap-8">
-          {/* Like */}
           <button
             onClick={handleLike}
             disabled={loadingAction === "like"}
@@ -268,7 +285,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             {liked ? "❤️" : "♡"} {likes}
           </button>
 
-          {/* Comentar */}
           <button
             onClick={() => setShowCommentInput(!showCommentInput)}
             className="flex items-center gap-1 hover:text-blue-500 transition"
@@ -276,7 +292,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             💬 {comments}
           </button>
 
-          {/* Repost */}
           <button
             onClick={handleRepost}
             disabled={loadingAction === "repost"}
@@ -286,21 +301,20 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </button>
         </div>
 
-        {/* Tip y Boost */}
         <div className="flex gap-3">
           <button
-            onClick={confirmTip}
+            onClick={handleTip}
             disabled={loadingAction === "tip"}
             className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 transition disabled:opacity-50"
           >
-            Tip {tipAmount} WLD
+            Tip 1 WLD
           </button>
           <button
-            onClick={confirmBoost}
+            onClick={handleBoost}
             disabled={loadingAction === "boost"}
             className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
           >
-            Boost {boostAmount} WLD
+            Boost 5 WLD
           </button>
         </div>
       </div>
@@ -359,18 +373,34 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Error */}
-      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
-
-      {/* Chat Exclusivo Creadores de Tokens */}
+      {/* Chat Exclusivo Creadores de Tokens (pago 5 WLD) */}
       {currentUserId && (
         <button
-          onClick={() => window.location.href = "/chat/premium"}
+          onClick={async () => {
+            if (!confirm("¿Pagar 5 WLD para acceder al Chat Exclusivo?")) return;
+            try {
+              const payRes = await MiniKit.commandsAsync.pay({
+                amount: 5,
+                currency: "WLD",
+                recipient: RECEIVER,
+              });
+              if (payRes?.finalPayload?.status === "success") {
+                window.location.href = "/chat/premium";
+              } else {
+                alert("Pago cancelado");
+              }
+            } catch (err) {
+              alert("Error al procesar pago");
+            }
+          }}
           className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700"
         >
-          Chat Exclusivo Creadores de Tokens
+          Chat Exclusivo Creadores de Tokens (5 WLD)
         </button>
       )}
+
+      {/* Error */}
+      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
     </div>
   );
 };
