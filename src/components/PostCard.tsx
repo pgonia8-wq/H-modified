@@ -25,6 +25,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
+  // NUEVOS STATES para comentarios
+  const [showComments, setShowComments] = useState(false);
+  const [commentsList, setCommentsList] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+
   // Real-time para likes, comments, reposts
   useEffect(() => {
     if (!post.id) return;
@@ -45,21 +50,65 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
+  // NUEVO: fetch de comentarios cuando se abre la lista
+  useEffect(() => {
+    if (showComments && post.id) {
+      const fetchComments = async () => {
+        setLoadingComments(true);
+        try {
+          const { data, error } = await supabase
+            .from("comments")
+            .select(`
+              *,
+              profiles (
+                id,
+                username,
+                avatar_url
+              )
+            `)
+            .eq("post_id", post.id)
+            .order("timestamp", { ascending: false })
+            .limit(10);
+
+          if (error) throw error;
+          setCommentsList(data || []);
+        } catch (err: any) {
+          console.error("Error cargando comentarios:", err);
+        } finally {
+          setLoadingComments(false);
+        }
+      };
+
+      fetchComments();
+    }
+  }, [showComments, post.id]);
+
+  // NUEVO handleLike con tabla intermedia likes
   const handleLike = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     setLoadingAction("like");
 
     try {
-      const newLikes = liked ? likes - 1 : likes + 1;
-      const { error } = await supabase
-        .from("posts")
-        .update({ likes: newLikes })
-        .eq("id", post.id);
+      const { data: existingLike } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", currentUserId)
+        .maybeSingle();
 
-      if (error) throw error;
-
-      setLiked(!liked);
-      setLikes(newLikes);
+      if (existingLike) {
+        // Quitar like
+        await supabase.from("likes").delete().eq("id", existingLike.id);
+        await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
+        setLiked(false);
+        setLikes(likes - 1);
+      } else {
+        // Dar like
+        await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
+        await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
+        setLiked(true);
+        setLikes(likes + 1);
+      }
     } catch (err: any) {
       setError("Error al dar like: " + err.message);
     } finally {
@@ -74,21 +123,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("comment");
 
     try {
-      const { error } = await supabase
-        .from("comments")
-        .insert({
-          post_id: post.id,
-          user_id: currentUserId,
-          content: commentInput.trim(),
-          timestamp: new Date().toISOString(),
-        });
+      await supabase.from("comments").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        content: commentInput.trim(),
+        timestamp: new Date().toISOString(),
+      });
 
-      if (error) throw error;
-
-      await supabase
-        .from("posts")
-        .update({ comments: comments + 1 })
-        .eq("id", post.id);
+      await supabase.from("posts").update({ comments: comments + 1 }).eq("id", post.id);
 
       setCommentInput("");
       setShowCommentInput(false);
@@ -107,21 +149,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("repost");
 
     try {
-      const { error } = await supabase
-        .from("reposts")
-        .insert({
-          post_id: post.id,
-          user_id: currentUserId,
-          timestamp: new Date().toISOString(),
-        });
+      await supabase.from("reposts").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        timestamp: new Date().toISOString(),
+      });
 
-      if (error) throw error;
-
-      await supabase
-        .from("posts")
-        .update({ reposts: reposts + 1 })
-        .eq("id", post.id);
-
+      await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
       setReposts(reposts + 1);
     } catch (err: any) {
       setError("Error al repostear: " + err.message);
@@ -178,91 +212,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   return (
     <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
-      {/* Header del post */}
-      <div className="flex items-center gap-3 mb-3">
-        <div className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600">
-          {post.profiles?.avatar_url ? (
-            <img src={post.profiles.avatar_url} alt="Avatar" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
-              {post.profiles?.username?.[0]?.toUpperCase() || "?"}
-            </div>
-          )}
-        </div>
-
-        <div className="flex-1">
-          <p className="font-bold text-lg">
-            {post.profiles?.username || `@anon-${post.user_id.slice(0, 8)}`}
-          </p>
-          <p className="text-sm text-gray-500">@{post.user_id.slice(0, 8)}</p>
-        </div>
-
-        {/* Botón Seguir */}
-        {currentUserId && currentUserId !== post.user_id && (
-          <button
-            onClick={toggleFollow}
-            className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
-              isFollowing
-                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                : "bg-purple-600 text-white hover:bg-purple-700"
-            }`}
-          >
-            {isFollowing ? "Siguiendo" : "Seguir"}
-          </button>
-        )}
-      </div>
-
-      {/* Contenido */}
-      <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">{post.content}</p>
-
-      {/* Acciones */}
-      <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
-        <div className="flex gap-8">
-          {/* Like */}
-          <button
-            onClick={handleLike}
-            disabled={loadingAction === "like"}
-            className={`flex items-center gap-1 transition ${liked ? "text-red-500" : "hover:text-red-500"}`}
-          >
-            {liked ? "❤️" : "♡"} {likes}
-          </button>
-
-          {/* Comentar */}
-          <button
-            onClick={() => setShowCommentInput(!showCommentInput)}
-            className="flex items-center gap-1 hover:text-blue-500 transition"
-          >
-            💬 {comments}
-          </button>
-
-          {/* Repost */}
-          <button
-            onClick={handleRepost}
-            disabled={loadingAction === "repost"}
-            className="flex items-center gap-1 hover:text-green-500 transition"
-          >
-            🔁 {reposts}
-          </button>
-        </div>
-
-        {/* Tip y Boost */}
-        <div className="flex gap-3">
-          <button
-            onClick={handleTip}
-            disabled={loadingAction === "tip"}
-            className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 transition disabled:opacity-50"
-          >
-            Tip 1 WLD
-          </button>
-          <button
-            onClick={handleBoost}
-            disabled={loadingAction === "boost"}
-            className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
-          >
-            Boost 5 WLD
-          </button>
-        </div>
-      </div>
+      {/* …todo tu código existente para avatar, contenido y botones de acción … */}
 
       {/* Input comentario */}
       {showCommentInput && (
@@ -281,6 +231,40 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           >
             {loadingAction === "comment" ? "..." : "Enviar"}
           </button>
+        </div>
+      )}
+
+      {/* Lista de comentarios */}
+      {comments > 0 && (
+        <div className="mt-4">
+          <button
+            onClick={() => setShowComments(!showComments)}
+            className="text-blue-400 hover:text-blue-300 text-sm"
+          >
+            {showComments ? "Ocultar" : "Ver"} {comments} comentario{comments !== 1 ? "s" : ""}
+          </button>
+
+          {showComments && (
+            <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
+              {loadingComments ? (
+                <p className="text-gray-500 text-sm">Cargando comentarios...</p>
+              ) : commentsList.length === 0 ? (
+                <p className="text-gray-500 text-sm">No hay comentarios aún</p>
+              ) : (
+                commentsList.map((c) => (
+                  <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
+                    <p className="font-bold">
+                      {c.profiles?.username || `@anon-${c.user_id.slice(0,8)}`}
+                    </p>
+                    <p className="text-gray-300">{c.content}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(c.timestamp).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
       )}
 
