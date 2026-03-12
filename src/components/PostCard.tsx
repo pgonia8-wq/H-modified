@@ -25,6 +25,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [tipAmount, setTipAmount] = useState(1); // Mínimo 1 WLD, editable
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
@@ -48,7 +49,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Cargar comentarios
+  // Cargar comentarios al abrir
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
@@ -58,7 +59,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             .from("comments")
             .select(`
               *,
-              profiles (
+              profiles!comments_user_id_fkey (
                 id,
                 username,
                 avatar_url
@@ -72,6 +73,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           setCommentsList(data || []);
         } catch (err: any) {
           console.error("Error cargando comentarios:", err);
+          setError("No se pudieron cargar comentarios");
         } finally {
           setLoadingComments(false);
         }
@@ -85,15 +87,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("like");
 
     try {
-      const { data: existingLike } = await supabase
+      const { data: existing } = await supabase
         .from("likes")
         .select("id")
         .eq("post_id", post.id)
         .eq("user_id", currentUserId)
         .maybeSingle();
 
-      if (existingLike) {
-        await supabase.from("likes").delete().eq("id", existingLike.id);
+      if (existing) {
+        await supabase.from("likes").delete().eq("id", existing.id);
         await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
         setLiked(false);
         setLikes(likes - 1);
@@ -117,14 +119,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("comment");
 
     try {
-      const { error } = await supabase
-        .from("comments")
-        .insert({
-          post_id: post.id,
-          user_id: currentUserId,
-          content: commentInput.trim(),
-          timestamp: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("comments").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        content: commentInput.trim(),
+        timestamp: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
@@ -142,18 +142,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const handleRepost = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (!confirm("¿Repostear este post?")) return;
 
     setLoadingAction("repost");
 
     try {
-      const { error } = await supabase
-        .from("reposts")
-        .insert({
-          post_id: post.id,
-          user_id: currentUserId,
-          timestamp: new Date().toISOString(),
-        });
+      const { error } = await supabase.from("reposts").insert({
+        post_id: post.id,
+        user_id: currentUserId,
+        timestamp: new Date().toISOString(),
+      });
 
       if (error) throw error;
 
@@ -169,7 +166,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (!confirm(`¿Enviar ${tipAmount} WLD como tip?`)) return;
+    if (tipAmount < 1) return setError("Mínimo 1 WLD");
 
     setLoadingAction("tip");
 
@@ -194,13 +191,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const handleBoost = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (!confirm(`¿Enviar ${boostAmount} WLD como boost?`)) return;
 
     setLoadingAction("boost");
 
     try {
       const payRes = await MiniKit.commandsAsync.pay({
-        amount: boostAmount,
+        amount: 5,
         currency: "WLD",
         recipient: RECEIVER,
       });
@@ -218,15 +214,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   const openUserProfile = () => {
-    // Abre modal perfil del usuario del post (puedes pasar post.user_id)
-    window.dispatchEvent(
-      new CustomEvent("openProfile", { detail: { userId: post.user_id } })
-    );
+    // Abre perfil del usuario del post
+    window.location.href = `/profile/${post.user_id}`;
+    // O usa evento si tienes modal global
+    // window.dispatchEvent(new CustomEvent("openProfile", { detail: { userId: post.user_id } }));
   };
 
   return (
     <div className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
-      {/* Header del post */}
+      {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div
           className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600 cursor-pointer"
@@ -256,15 +252,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </p>
         </div>
 
-        {/* Botón Seguir */}
+        {/* Seguir */}
         {currentUserId && currentUserId !== post.user_id && (
           <button
             onClick={toggleFollow}
             className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
-              isFollowing
-                ? "bg-gray-700 text-gray-300 hover:bg-gray-600"
-                : "bg-purple-600 text-white hover:bg-purple-700"
-            }`}
+              isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"
+            } hover:opacity-90`}
           >
             {isFollowing ? "Siguiendo" : "Seguir"}
           </button>
@@ -280,14 +274,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           <button
             onClick={handleLike}
             disabled={loadingAction === "like"}
-            className={`flex items-center gap-1 transition ${liked ? "text-red-500" : "hover:text-red-500"}`}
+            className={`flex items-center gap-1 ${liked ? "text-red-500" : "hover:text-red-500"}`}
           >
             {liked ? "❤️" : "♡"} {likes}
           </button>
 
           <button
             onClick={() => setShowCommentInput(!showCommentInput)}
-            className="flex items-center gap-1 hover:text-blue-500 transition"
+            className="flex items-center gap-1 hover:text-blue-500"
           >
             💬 {comments}
           </button>
@@ -295,24 +289,34 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           <button
             onClick={handleRepost}
             disabled={loadingAction === "repost"}
-            className="flex items-center gap-1 hover:text-green-500 transition"
+            className="flex items-center gap-1 hover:text-green-500"
           >
             🔁 {reposts}
           </button>
         </div>
 
         <div className="flex gap-3">
-          <button
-            onClick={handleTip}
-            disabled={loadingAction === "tip"}
-            className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 transition disabled:opacity-50"
-          >
-            Tip 1 WLD
-          </button>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min="1"
+              value={tipAmount}
+              onChange={(e) => setTipAmount(Math.max(1, Number(e.target.value)))}
+              className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
+            />
+            <button
+              onClick={handleTip}
+              disabled={loadingAction === "tip"}
+              className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 disabled:opacity-50"
+            >
+              Tip
+            </button>
+          </div>
+
           <button
             onClick={handleBoost}
             disabled={loadingAction === "boost"}
-            className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
+            className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 disabled:opacity-50"
           >
             Boost 5 WLD
           </button>
@@ -339,7 +343,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Ver comentarios */}
+      {/* Lista de comentarios */}
       {comments > 0 && (
         <div className="mt-4">
           <button
@@ -373,11 +377,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Chat Exclusivo Creadores de Tokens (pago 5 WLD) */}
+      {/* Chat Exclusivo Creadores de Tokens */}
       {currentUserId && (
         <button
           onClick={async () => {
-            if (!confirm("¿Pagar 5 WLD para acceder al Chat Exclusivo?")) return;
+            if (!confirm("¿Pagar 5 WLD para acceder al Chat Exclusivo Creadores?")) return;
+            setLoadingAction("subscription");
             try {
               const payRes = await MiniKit.commandsAsync.pay({
                 amount: 5,
@@ -385,15 +390,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 recipient: RECEIVER,
               });
               if (payRes?.finalPayload?.status === "success") {
-                window.location.href = "/chat/premium";
+                window.location.href = "/chat/tokens";
               } else {
                 alert("Pago cancelado");
               }
             } catch (err) {
               alert("Error al procesar pago");
+            } finally {
+              setLoadingAction(null);
             }
           }}
-          className="w-full py-3 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700"
+          className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
         >
           Chat Exclusivo Creadores de Tokens (5 WLD)
         </button>
