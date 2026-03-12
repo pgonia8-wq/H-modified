@@ -158,7 +158,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // --- CORRECCIÓN DE PAGOS ---
+  // --- Lógica de pagos corregida ---
   const confirmTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     if (tipAmount < 1) return setError("El mínimo es 1 WLD");
@@ -234,7 +234,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       setLoadingAction(null);
     }
   };
-  // --- FIN PAGOS ---
+  // --- Fin lógica pagos ---
 
   const openUserProfile = () => {
     window.location.href = `/profile/${post.user_id}`;
