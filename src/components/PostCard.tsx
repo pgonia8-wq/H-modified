@@ -25,7 +25,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tipAmount, setTipAmount] = useState(1); // Editable, mínimo 1 WLD
+  const [tipAmount, setTipAmount] = useState(1); // Dinámico, mínimo 1 WLD
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
@@ -49,15 +49,22 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Cargar comentarios
+  // Cargar comentarios (usando vista segura)
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
         setLoadingComments(true);
         try {
           const { data, error } = await supabase
-            .from("comments_with_profiles")
-            .select("*")
+            .from("comments")
+            .select(`
+              *,
+              profiles (
+                id,
+                username,
+                avatar_url
+              )
+            `)
             .eq("post_id", post.id)
             .order("timestamp", { ascending: false })
             .limit(10);
@@ -158,92 +165,79 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // --- PAGOS CORREGIDOS SEGÚN HOME ---
-  const confirmTip = async () => {
+  // Tip dinámico (mínimo 1 WLD, usuario elige monto)
+  const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (tipAmount < 1) return setError("El mínimo es 1 WLD");
+    if (tipAmount < 1) return setError("Mínimo 1 WLD");
 
     setLoadingAction("tip");
-    try {
-      const reference = `tip-${post.id}-${Date.now()}`;
-      const amount = tokenToDecimals(tipAmount, Tokens.WLD).toString();
 
-      const res = await MiniKit.commandsAsync.pay({
-        reference,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
-        description: "Tip a post",
+    try {
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: tipAmount,
+        currency: "WLD",
+        recipient: RECEIVER,
       });
 
-      if (res?.finalPayload?.status === "success") {
+      if (payRes?.finalPayload?.status === "success") {
         alert("¡Tip enviado!");
       } else {
-        alert("Pago fallido");
+        alert("Pago cancelado o fallido");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el pago");
+    } catch (err: any) {
+      setError("Error en tip: " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
-  const confirmBoost = async () => {
+  // Boost fijo 5 WLD
+  const handleBoost = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
 
     setLoadingAction("boost");
-    try {
-      const reference = `boost-${post.id}-${Date.now()}`;
-      const amount = tokenToDecimals(5, Tokens.WLD).toString();
 
-      const res = await MiniKit.commandsAsync.pay({
-        reference,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
-        description: "Boost a post",
+    try {
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: 5,
+        currency: "WLD",
+        recipient: RECEIVER,
       });
 
-      if (res?.finalPayload?.status === "success") {
+      if (payRes?.finalPayload?.status === "success") {
         alert("¡Boost enviado!");
       } else {
-        alert("Pago fallido");
+        alert("Pago cancelado o fallido");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el boost");
+    } catch (err: any) {
+      setError("Error en boost: " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
-  const confirmSubscription = async () => {
-    if (!currentUserId) return setError("Debes estar logueado");
-
+  // Chat Creadores (pago 5 WLD directo, sin confirmación extra)
+  const handleChatCreadores = async () => {
     setLoadingAction("subscription");
-    try {
-      const reference = `sub-chat-${post.id}-${Date.now()}`;
-      const amount = tokenToDecimals(5, Tokens.WLD).toString();
 
-      const res = await MiniKit.commandsAsync.pay({
-        reference,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: amount }],
-        description: "Suscripción Chat Creadores de Tokens",
+    try {
+      const payRes = await MiniKit.commandsAsync.pay({
+        amount: 5,
+        currency: "WLD",
+        recipient: RECEIVER,
       });
 
-      if (res?.finalPayload?.status === "success") {
+      if (payRes?.finalPayload?.status === "success") {
         window.location.href = "/chat/tokens";
       } else {
         alert("Pago cancelado");
       }
-    } catch (err) {
-      console.error(err);
-      alert("Error al procesar el pago");
+    } catch (err: any) {
+      setError("Error al procesar pago: " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
-  // --- FIN PAGOS CORREGIDOS ---
 
   const openUserProfile = () => {
     window.location.href = `/profile/${post.user_id}`;
@@ -333,7 +327,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
             />
             <button
-              onClick={confirmTip}
+              onClick={handleTip}
               disabled={loadingAction === "tip"}
               className="px-4 py-1 bg-yellow-600 text-white rounded-full text-xs hover:bg-yellow-700 disabled:opacity-50"
             >
@@ -342,7 +336,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           </div>
 
           <button
-            onClick={confirmBoost}
+            onClick={handleBoost}
             disabled={loadingAction === "boost"}
             className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 disabled:opacity-50"
           >
@@ -391,7 +385,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
                     <p className="font-bold">
-                      {c.username || `@anon-${c.user_id.slice(0,8)}`}
+                      {c.profiles?.username || `@anon-${c.user_id.slice(0,8)}`}
                     </p>
                     <p className="text-gray-300">{c.content}</p>
                     <p className="text-xs text-gray-500 mt-1">
@@ -408,7 +402,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Chat Exclusivo Creadores de Tokens */}
       {currentUserId && (
         <button
-          onClick={confirmSubscription}
+          onClick={handleChatCreadores}
           className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
         >
           Chat Exclusivo Creadores de Tokens (5 WLD)
