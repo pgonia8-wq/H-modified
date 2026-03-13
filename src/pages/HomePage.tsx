@@ -9,7 +9,6 @@ import Inbox from "./chat/Inbox";
 const PAGE_SIZE = 8;
 
 const HomePage = ({ userId }: { userId: string | null }) => {
-
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +31,17 @@ const HomePage = ({ userId }: { userId: string | null }) => {
   const [newMessage, setNewMessage] = useState("");
   const [newMessageAttachments, setNewMessageAttachments] = useState<string[]>([]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => { ... } // lógica de subir archivos
-  const sendMessage = async () => { ... } // lógica de crear mensaje en supabase + adjuntos
-  
+  // FUNCIONES DE MENSAJES
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // lógica de subir archivos va aquí
+    console.log("Archivos seleccionados:", e.target.files);
+  };
+
+  const sendMessage = async () => {
+    // lógica de crear mensaje en supabase + adjuntos va aquí
+    console.log("Enviar mensaje con adjuntos:", newMessageAttachments);
+  };
+
   const { theme, toggleTheme } = useContext(ThemeContext);
 
   const containerRef = useRef<HTMLDivElement>(null);
