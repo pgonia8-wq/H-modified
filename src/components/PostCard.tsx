@@ -29,7 +29,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
-  // Real-time (sin cambios)
+  // Real-time
   useEffect(() => {
     if (!post.id) return;
 
@@ -49,28 +49,49 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Cargar comentarios (sin cambios)
+  // Cargar comentarios (sin join fallido)
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
         setLoadingComments(true);
         try {
-          const { data, error } = await supabase
+          // 1. Traer comentarios
+          const { data: commentsData, error: commentsError } = await supabase
             .from("comments")
-            .select(`
-              *,
-              profiles (
-                id,
-                username,
-                avatar_url
-              )
-            `)
+            .select("*")
             .eq("post_id", post.id)
             .order("timestamp", { ascending: false })
             .limit(10);
 
-          if (error) throw error;
-          setCommentsList(data || []);
+          if (commentsError) throw commentsError;
+
+          if (!commentsData || commentsData.length === 0) {
+            setCommentsList([]);
+            return;
+          }
+
+          // 2. Traer usernames y avatars de profiles (por user_id)
+          const userIds = [...new Set(commentsData.map(c => c.user_id))];
+          const { data: profilesData, error: profilesError } = await supabase
+            .from("profiles")
+            .select("id, username, avatar_url")
+            .in("id", userIds);
+
+          if (profilesError) throw profilesError;
+
+          // Mapear profiles a un objeto por id
+          const profilesMap = (profilesData || []).reduce((acc, p) => {
+            acc[p.id] = p;
+            return acc;
+          }, {} as Record<string, any>);
+
+          // Combinar
+          const enriched = commentsData.map(c => ({
+            ...c,
+            profiles: profilesMap[c.user_id] || null,
+          }));
+
+          setCommentsList(enriched);
         } catch (err: any) {
           console.error("Error cargando comentarios:", err);
           setError("No se pudieron cargar los comentarios");
@@ -173,15 +194,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setError(null);
 
     try {
-      console.log("[TIP] Iniciando pago con monto:", tipAmount);
-
       const payRes = await MiniKit.commandsAsync.pay({
         amount: tipAmount,
         currency: "WLD",
         recipient: RECEIVER,
       });
-
-      console.log("[TIP] Respuesta completa de MiniKit:", payRes);
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         alert("¡Tip enviado!");
@@ -205,15 +222,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setError(null);
 
     try {
-      console.log("[BOOST] Iniciando pago fijo 5 WLD");
-
       const payRes = await MiniKit.commandsAsync.pay({
         amount: 5,
         currency: "WLD",
         recipient: RECEIVER,
       });
-
-      console.log("[BOOST] Respuesta completa de MiniKit:", payRes);
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         alert("¡Boost enviado!");
@@ -235,15 +248,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setError(null);
 
     try {
-      console.log("[CHAT] Iniciando pago suscripción 5 WLD");
-
       const payRes = await MiniKit.commandsAsync.pay({
         amount: 5,
         currency: "WLD",
         recipient: RECEIVER,
       });
-
-      console.log("[CHAT] Respuesta completa de MiniKit:", payRes);
 
       if (payRes && payRes.finalPayload && payRes.finalPayload.status === "success") {
         window.location.href = "/chat/tokens";
