@@ -394,39 +394,82 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     )}
 
     {/* MODAL NUEVO POST */}
-    {showNewPostModal && (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 px-4">
-        <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-lg border border-white/10">
-          <h2 className="text-xl font-bold mb-4 text-white">Nuevo Post</h2>
-          <textarea
-            value={newPostContent}
-            onChange={(e) => {
-              if (e.target.value.length <= maxChars) setNewPostContent(e.target.value);
-            }}
-            className="w-full bg-black border border-gray-700 rounded-xl p-4 min-h-[140px] text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-            placeholder="¿Qué estás pensando?"
-            maxLength={maxChars}
-          />
-          <div className="flex justify-between mt-4 text-sm text-gray-400">
-            <span>{newPostContent.length} / {maxChars}</span>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowNewPostModal(false)}
-                className="px-5 py-2 bg-gray-800 rounded-full"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleCreatePost}
-                className="px-6 py-2 bg-purple-600 rounded-full font-medium"
-              >
-                Publicar
-              </button>
-            </div>
+{showNewPostModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
+    <div className="bg-gradient-to-b from-gray-800 to-gray-900 rounded-3xl p-6 w-full max-w-lg border border-white/20 shadow-xl flex flex-col gap-4">
+      
+      {/* HEADER */}
+      <h2 className="text-2xl font-bold text-white">Nuevo Post</h2>
+
+      {/* TEXTO DEL POST */}
+      <textarea
+        value={newPostContent}
+        onChange={(e) => {
+          if (e.target.value.length <= maxChars) setNewPostContent(e.target.value);
+        }}
+        className="w-full bg-gray-800 border border-gray-700 rounded-xl p-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none min-h-[140px]"
+        placeholder="¿Qué estás pensando?"
+        maxLength={maxChars}
+      />
+
+      {/* SUBIDA DE IMAGEN */}
+      <div className="flex flex-col gap-2">
+        {newMessageAttachments[0] ? (
+          <div className="relative w-40 h-40">
+            <img
+              src={newMessageAttachments[0]}
+              alt="Preview"
+              className="w-full h-full object-cover rounded-xl border border-gray-700"
+            />
+            <button
+              onClick={() => setNewMessageAttachments([])}
+              className="absolute -top-2 -right-2 bg-red-600 text-white w-6 h-6 rounded-full flex items-center justify-center font-bold hover:bg-red-700 transition-colors"
+              title="Eliminar imagen"
+            >
+              ✕
+            </button>
           </div>
+        ) : (
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => {
+              if (e.target.files && e.target.files[0]) {
+                const file = e.target.files[0];
+                // Guardamos en state para enviar a backend + preview
+                setNewMessageAttachments([URL.createObjectURL(file)]);
+              }
+            }}
+            className="text-sm text-gray-300 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700"
+          />
+        )}
+      </div>
+
+      {/* PIE DEL MODAL */}
+      <div className="flex justify-between items-center text-sm text-gray-400">
+        <span>{newPostContent.length} / {maxChars}</span>
+        <div className="flex gap-3">
+          <button
+            onClick={() => { 
+              setShowNewPostModal(false); 
+              setNewPostContent("");
+              setNewMessageAttachments([]);
+            }}
+            className="px-5 py-2 bg-gray-700 rounded-full hover:bg-gray-600 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleCreatePost}
+            className="px-6 py-2 bg-purple-600 rounded-full font-medium hover:bg-purple-700 transition-colors"
+          >
+            Publicar
+          </button>
         </div>
       </div>
-    )}
+    </div>
+  </div>
+ )}
   </div>
 );
 };  
