@@ -37,16 +37,60 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
   const [chatUserId, setChatUserId] = useState<string | null>(null);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
 
+  /* ------------------------------
+     Carga inicial
+  ------------------------------ */
+
   useEffect(() => {
+
     if (!currentUserId) return;
 
     loadConversations();
     loadMatches();
+
   }, [currentUserId]);
 
-  /* ----------------------------------------
+  /* ------------------------------
+     Realtime Inbox
+  ------------------------------ */
+
+  useEffect(() => {
+
+    if (!currentUserId) return;
+
+    const channel = supabase
+      .channel("inbox-realtime")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages"
+        },
+        (payload) => {
+
+          const msg = payload.new as any;
+
+          if (
+            msg.receiver_id === currentUserId ||
+            msg.sender_id === currentUserId
+          ) {
+            loadConversations();
+          }
+
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+
+  }, [currentUserId]);
+
+  /* ------------------------------
      Cargar conversaciones
-  ---------------------------------------- */
+  ------------------------------ */
 
   const loadConversations = async () => {
 
@@ -77,7 +121,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
     } catch (err: any) {
 
-      console.error("[INBOX] Error cargando conversaciones:", err.message);
+      console.error("[INBOX]", err.message);
 
     } finally {
 
@@ -87,9 +131,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ----------------------------------------
-     Contador mensajes no leídos
-  ---------------------------------------- */
+  /* ------------------------------
+     Contador no leídos
+  ------------------------------ */
 
   const loadUnreadCounts = async (convs: Conversation[]) => {
 
@@ -117,9 +161,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ----------------------------------------
+  /* ------------------------------
      Cargar matches
-  ---------------------------------------- */
+  ------------------------------ */
 
   const loadMatches = async () => {
 
@@ -149,15 +193,15 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
     } catch (err: any) {
 
-      console.error("[INBOX] Error cargando matches:", err.message);
+      console.error("[INBOX MATCHES]", err.message);
 
     }
 
   };
 
-  /* ----------------------------------------
+  /* ------------------------------
      Cargar perfiles
-  ---------------------------------------- */
+  ------------------------------ */
 
   const loadProfiles = async (ids: string[]) => {
 
@@ -165,92 +209,59 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
     if (toLoad.length === 0) return;
 
-    try {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id,name,username,avatar_url")
+      .in("id", toLoad);
 
-      const { data } = await supabase
-        .from("profiles")
-        .select("id,name,username,avatar_url")
-        .in("id", toLoad);
-
-      if (data) {
-
-        setProfilesCache(prev => {
-
-          const newCache = { ...prev };
-
-          data.forEach(p => {
-            newCache[p.id] = p;
-          });
-
-          return newCache;
-
-        });
-
-      }
-
-    } catch (err: any) {
-
-      console.error("[INBOX] Error cargando perfiles:", err.message);
-
-    }
-
-  };
-
-  /* ----------------------------------------
-     Buscar usuarios (solo matches)
-  ---------------------------------------- */
-
-  const handleSearch = async (query: string) => {
-
-    setSearchQuery(query);
-
-    if (!currentUserId || !query.trim()) {
-
-      setSearchResults([]);
-      return;
-
-    }
-
-    try {
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id,name,username,avatar_url")
-        .ilike("username", `%${query}%`)
-        .limit(10);
-
-      if (error) throw error;
-
-      const filtered = (data || []).filter(u =>
-        matchIds.includes(u.id)
-      );
-
-      setSearchResults(filtered);
+    if (data) {
 
       setProfilesCache(prev => {
 
         const newCache = { ...prev };
 
-        filtered.forEach(u => {
-          newCache[u.id] = u;
+        data.forEach(p => {
+          newCache[p.id] = p;
         });
 
         return newCache;
 
       });
 
-    } catch (err: any) {
-
-      console.error("[INBOX] Error buscando usuarios:", err.message);
-      setSearchResults([]);
-
     }
 
   };
 
-  /* ----------------------------------------
-     Abrir Chat
-  ---------------------------------------- */
+  /* ------------------------------
+     Buscar usuarios
+  ------------------------------ */
+
+  const handleSearch = async (query: string) => {
+
+    setSearchQuery(query);
+
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    const { data } = await supabase
+      .from("profiles")
+      .select("id,name,username,avatar_url")
+      .ilike("username", `%${query}%`)
+      .limit(10);
+
+    const filtered = (data || []).filter(u =>
+      matchIds.includes(u.id)
+    );
+
+    setSearchResults(filtered);
+
+  };
+
+  /* ------------------------------
+     Abrir chat
+  ------------------------------ */
 
   const openChat = (userId: string) => {
 
@@ -259,9 +270,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ----------------------------------------
+  /* ------------------------------
      Render perfil
-  ---------------------------------------- */
+  ------------------------------ */
 
   const renderProfile = (id: string) => {
 
@@ -271,7 +282,7 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
       <div className="flex items-center gap-2">
 
-        <div className="w-8 h-8 rounded-full bg-gray-600 flex items-center justify-center text-white overflow-hidden">
+        <div className="w-8 h-8 rounded-full bg-gray-600 overflow-hidden flex items-center justify-center text-white">
 
           {p?.avatar_url ? (
 
@@ -283,22 +294,20 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
           ) : (
 
-            p?.name?.[0] || p?.username?.[0]
+            p?.username?.[0]
 
           )}
 
         </div>
 
         <div className="text-white text-sm">
-          {p?.username || id.slice(0, 10)}
+          {p?.username || id.slice(0, 8)}
         </div>
 
         {newMatches.includes(id) && (
-
-          <span className="ml-1 px-1.5 py-0.5 bg-green-500 text-xs rounded">
+          <span className="text-xs bg-green-500 px-1 rounded">
             nuevo
           </span>
-
         )}
 
       </div>
@@ -307,9 +316,9 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   };
 
-  /* ----------------------------------------
+  /* ------------------------------
      Abrir ChatWindow
-  ---------------------------------------- */
+  ------------------------------ */
 
   if (chatUserId && currentUserId) {
 
@@ -325,27 +334,15 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
   }
 
-  /* ----------------------------------------
+  /* ------------------------------
      UI
-  ---------------------------------------- */
-
-  if (!currentUserId) {
-
-    return (
-      <div className="p-4 text-gray-400 text-center">
-        No hay usuario logueado
-      </div>
-    );
-
-  }
+  ------------------------------ */
 
   return (
 
     <div className="w-full h-full flex flex-col">
 
-      {/* Header */}
-
-      <div className="flex justify-between items-center mb-3">
+      <div className="flex justify-between mb-3">
 
         <h2 className="text-white font-bold text-lg">
           Mensajes
@@ -360,54 +357,33 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
 
       </div>
 
-      {/* Buscador */}
-
       <input
-        type="text"
         value={searchQuery}
         onChange={(e) => handleSearch(e.target.value)}
         placeholder="Buscar seguidores..."
-        className="w-full mb-3 p-2 rounded bg-gray-800 text-white focus:outline-none"
+        className="p-2 mb-3 rounded bg-gray-800 text-white"
       />
 
-      {/* Resultados búsqueda */}
+      {searchResults.map(u => (
 
-      {searchResults.length > 0 && (
+        <div
+          key={u.id}
+          onClick={() => openChat(u.id)}
+          className="p-2 hover:bg-gray-700 rounded cursor-pointer"
+        >
 
-        <div className="mb-2 max-h-40 overflow-y-auto">
-
-          {searchResults.map(u => (
-
-            <div
-              key={u.id}
-              onClick={() => openChat(u.id)}
-              className="flex items-center p-2 cursor-pointer hover:bg-gray-700 rounded"
-            >
-
-              {renderProfile(u.id)}
-
-            </div>
-
-          ))}
+          {renderProfile(u.id)}
 
         </div>
 
-      )}
-
-      {/* Conversaciones */}
+      ))}
 
       <div className="flex-1 overflow-y-auto">
 
         {loading ? (
 
           <p className="text-gray-400 text-center mt-4">
-            Cargando conversaciones...
-          </p>
-
-        ) : conversations.length === 0 ? (
-
-          <p className="text-gray-400 text-center mt-4">
-            No hay conversaciones aún
+            Cargando...
           </p>
 
         ) : (
@@ -429,24 +405,22 @@ const Inbox: React.FC<InboxProps> = ({ currentUserId, onClose }) => {
               <div
                 key={c.id}
                 onClick={() => openChat(otherId)}
-                className="flex items-center justify-between p-2 bg-gray-800 rounded mb-1 cursor-pointer hover:bg-gray-700"
+                className="flex justify-between p-2 bg-gray-800 rounded mb-1 hover:bg-gray-700 cursor-pointer"
               >
 
                 {renderProfile(otherId)}
 
-                <div className="flex items-center gap-2">
+                <div className="flex gap-2 items-center">
 
                   {unread > 0 && (
-
-                    <span className="bg-red-600 text-xs px-2 py-0.5 rounded-full text-white">
+                    <span className="bg-red-600 text-xs px-2 rounded-full">
                       {unread}
                     </span>
-
                   )}
 
-                  <div className="text-gray-400 text-sm">
+                  <span className="text-gray-400 text-sm">
                     {c.last_message}
-                  </div>
+                  </span>
 
                 </div>
 
