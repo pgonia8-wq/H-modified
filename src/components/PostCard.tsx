@@ -49,7 +49,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Cargar comentarios (usando vista segura)
+  // Cargar comentarios
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
@@ -165,7 +165,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // Tip dinámico (mínimo 1 WLD, usuario elige monto)
   const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
     if (tipAmount < 1) return setError("Mínimo 1 WLD");
@@ -191,7 +190,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // Boost fijo 5 WLD
   const handleBoost = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
 
@@ -216,7 +214,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
-  // Chat Creadores (pago 5 WLD directo, sin confirmación extra)
   const handleChatCreadores = async () => {
     setLoadingAction("subscription");
 
@@ -322,8 +319,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             <input
               type="number"
               min="1"
+              step="0.1"
               value={tipAmount}
-              onChange={(e) => setTipAmount(Math.max(1, Number(e.target.value)))}
+              onChange={(e) => {
+                const value = Number(e.target.value);
+                if (!isNaN(value) && value >= 1) setTipAmount(value);
+              }}
               className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
             />
             <button
