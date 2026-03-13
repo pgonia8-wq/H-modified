@@ -25,8 +25,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [loadingComments, setLoadingComments] = useState(false);
   const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tipAmount, setTipAmount] = useState<number | "">(1); // permite borrar todo
+  const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
+  const [quoteInput, setQuoteInput] = useState("");
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
@@ -183,9 +184,35 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   };
 
+  const confirmQuote = async () => {
+    if (!currentUserId) return setError("Debes estar logueado");
+    if (!quoteInput.trim()) return setError("Escribe algo para citar");
+
+    setLoadingAction("repost");
+    setShowRepostModal(false);
+
+    try {
+      const { error } = await supabase.from("posts").insert({
+        user_id: currentUserId,
+        content: quoteInput.trim(),
+        quoted_post_id: post.id,
+        timestamp: new Date().toISOString(),
+      });
+
+      if (error) throw error;
+
+      alert("¡Post citado!");
+      setQuoteInput("");
+    } catch (err: any) {
+      setError("Error al citar: " + err.message);
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
   const handleTip = async () => {
     if (!currentUserId) return setError("Debes estar logueado");
-    if (typeof tipAmount !== "number" || tipAmount < 1) return setError("Mínimo 1 WLD");
+    if (tipAmount === "" || Number(tipAmount) < 1) return setError("Mínimo 1 WLD");
 
     setLoadingAction("tip");
     setError(null);
@@ -196,7 +223,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         to: RECEIVER,
         tokens: [{
           symbol: Tokens.WLD,
-          token_amount: tokenToDecimals(tipAmount, Tokens.WLD).toString()
+          token_amount: tokenToDecimals(Number(tipAmount), Tokens.WLD).toString()
         }],
         description: "Tip al post"
       });
@@ -320,15 +347,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Contenido */}
       <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">{post.content}</p>
 
-      {/* Imagen si existe */}
-      {post.image_url && (
-        <img
-          src={post.image_url}
-          alt="Post image"
-          className="w-full rounded-xl mt-3 max-h-[400px] object-cover"
-        />
-      )}
-
       {/* Acciones */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
         <div className="flex gap-8">
@@ -406,7 +424,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Ver comentarios */}
+      {/* Lista de comentarios */}
       {comments > 0 && (
         <div className="mt-4">
           <button
@@ -453,7 +471,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Error */}
       {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
 
-      {/* Modal Repost bonito */}
+      {/* Modal Repost */}
       {showRepostModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
@@ -468,8 +486,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               <button
                 onClick={() => {
                   setShowRepostModal(false);
-                  // Aquí puedes abrir modal de citar en el futuro
-                  alert("Función de citar post (próximamente)");
+                  // Abrir modal de citar
+                  alert("Escribe tu comentario para citar el post (implementar modal completo si lo deseas)");
                 }}
                 className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
               >
