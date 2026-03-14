@@ -68,18 +68,7 @@ const PAGE_SIZE = 8;
       const from = reset ? 0 : page * PAGE_SIZE;
       const to = from + PAGE_SIZE - 1;
 
-      const { data, error } = await supabase
-        .from("posts")
-        .select(`
-          *,
-          profiles (
-            id,
-            username,
-            avatar_url
-          )
-        `)
-        .order("timestamp", { ascending: false })
-        .range(from, to);
+      const { data, error } = await supabase.rpc("get_trending_posts");
 
       if (error) throw error;
 
