@@ -12,6 +12,7 @@ interface FeedPageProps {
   currentUserId: string | null;
   userTier: "free" | "basic" | "premium" | "premium+";
   onUpgradeSuccess?: () => void;
+  t: (key: string) => string; // <-- idioma
 }
 
 const FeedPage: React.FC<FeedPageProps> = ({
@@ -20,7 +21,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
   error,
   currentUserId,
   userTier,
-  onUpgradeSuccess
+  onUpgradeSuccess,
+  t
 }) => {
 
   const [showUpgradeOptions, setShowUpgradeOptions] = useState(false);
@@ -36,7 +38,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
     const now = Date.now();
 
     const calculateScore = (post: any) => {
-
       const weightLikes = 1;
       const weightComments = 2;
       const weightReposts = 2;
@@ -46,10 +47,8 @@ const FeedPage: React.FC<FeedPageProps> = ({
       const ageHours =
         (now - new Date(post.timestamp).getTime()) / 3600000;
 
-      // Recency decay
       const recencyDecay = Math.exp(-ageHours / 24);
 
-      // Engagement base
       const likes = post.likes || 0;
       const comments = post.comments || 0;
       const reposts = post.reposts || 0;
@@ -61,20 +60,16 @@ const FeedPage: React.FC<FeedPageProps> = ({
         reposts * weightReposts +
         tips * weightTips;
 
-      // Normalización por edad
       const engagementScore = engagement / (1 + ageHours);
 
-      // Boost pagado
       const boost =
         post.boosted_until &&
         new Date(post.boosted_until) > new Date()
           ? weightBoost
           : 0;
 
-      // Score por tags
       const tagScore = post.tags ? post.tags.length * 0.5 : 0;
 
-      // Velocity (posts que se vuelven virales)
       const velocity =
         (likes + comments * 2 + reposts * 2 + tips * 3) /
         Math.max(ageHours, 1);
@@ -140,24 +135,23 @@ const FeedPage: React.FC<FeedPageProps> = ({
     setUpgradeError(null);
 
     if (!price) {
-      setUpgradeError("Calculando precio, intenta nuevamente.");
+      setUpgradeError(t("calculating_price_try_again"));
       return;
     }
 
     if (!currentUserId || !selectedTier) {
-      setUpgradeError("No se encontró tu ID o tier seleccionado");
+      setUpgradeError(t("no_user_or_tier"));
       return;
     }
 
     if (!MiniKit.isInstalled()) {
-      setUpgradeError("MiniKit no detectado dentro de World App");
+      setUpgradeError(t("minikit_not_detected"));
       return;
     }
 
     setLoadingUpgrade(true);
 
     try {
-
       const payRes = await MiniKit.commandsAsync.pay({
         reference: "upgrade-" + Date.now(),
         to: RECEIVER,
@@ -173,7 +167,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
       console.log("[UPGRADE] pay response:", payRes);
 
       if (payRes?.finalPayload?.status !== "success") {
-        throw new Error(payRes?.finalPayload?.description || "Pago cancelado");
+        throw new Error(payRes?.finalPayload?.description || t("payment_cancelled"));
       }
 
       const transactionId = payRes?.finalPayload?.transaction_id;
@@ -191,10 +185,10 @@ const FeedPage: React.FC<FeedPageProps> = ({
       const data = await res.json();
 
       if (!data.success) {
-        throw new Error(data.error || "Error al procesar upgrade");
+        throw new Error(data.error || t("upgrade_error"));
       }
 
-      alert(`Upgrade ${selectedTier} exitoso`);
+      alert(t("upgrade_success", { tier: selectedTier }));
 
       onUpgradeSuccess?.();
 
@@ -204,7 +198,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       console.error("[UPGRADE] error:", err);
 
-      setUpgradeError(err.message || "Error en el upgrade");
+      setUpgradeError(err.message || t("upgrade_error"));
 
     } finally {
 
@@ -221,7 +215,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
           onClick={handleUpgrade}
           className="w-full py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-bold shadow-lg"
         >
-          Upgrade
+          {t("upgrade")}
         </button>
       </div>
 
@@ -232,27 +226,27 @@ const FeedPage: React.FC<FeedPageProps> = ({
             onClick={() => selectTier("premium")}
             className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold"
           >
-            Premium
+            {t("premium")}
           </button>
 
           <button
             onClick={() => selectTier("premium+")}
             className="w-full py-4 rounded-xl bg-purple-600 text-white font-bold"
           >
-            Premium+
+            {t("premium_plus")}
           </button>
 
         </div>
       )}
 
       {loading ? (
-        <p className="text-center py-10">Cargando...</p>
+        <p className="text-center py-10">{t("loading")}</p>
       ) : error ? (
         <p className="text-red-500 text-center py-10">{error}</p>
       ) : (
         <div className="space-y-5">
           {sortedPosts?.map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+            <PostCard key={post.id} post={post} currentUserId={currentUserId} t={t} />
           ))}
         </div>
       )}
@@ -267,11 +261,11 @@ const FeedPage: React.FC<FeedPageProps> = ({
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6">
 
             <h2 className="text-xl font-bold text-white mb-4">
-              Beneficios de {selectedTier}
+              {t("benefits_of")} {selectedTier}
             </h2>
 
             <p className="text-white text-center mb-4">
-              Precio: {price} WLD
+              {t("price")}: {price} WLD
             </p>
 
             <div className="flex gap-4">
@@ -280,7 +274,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                 onClick={cancelUpgrade}
                 className="flex-1 py-3 bg-gray-700 text-white rounded-2xl"
               >
-                Cancelar
+                {t("cancel")}
               </button>
 
               <button
@@ -288,7 +282,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
                 disabled={loadingUpgrade}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
-                {loadingUpgrade ? "Procesando..." : "Aceptar"}
+                {loadingUpgrade ? t("processing") : t("accept")}
               </button>
 
             </div>
