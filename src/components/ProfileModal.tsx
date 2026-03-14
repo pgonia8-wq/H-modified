@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
-import { t } from '../lib/LanguageContext';
+import { t } from '../LanguageContext';
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
