@@ -417,12 +417,13 @@ const PAGE_SIZE = 8;
   </div>
 )}
 
-{/* MODAL NOTIFICACIONES */}
 {showNotifications && (
   <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
     <div className="bg-white dark:bg-gray-900 rounded-xl w-[90%] max-w-md p-4">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold">Notificaciones</h2>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Notificaciones
+        </h2>
         <button
           onClick={() => setShowNotifications(false)}
           className="text-gray-500 hover:text-gray-700"
@@ -431,13 +432,12 @@ const PAGE_SIZE = 8;
         </button>
       </div>
       <div className="space-y-2 max-h-[400px] overflow-y-auto">
-        <p className="text-gray-500 text-sm">Aún no tienes notificaciones.</p>
+        <p className="text-gray-500 text-sm dark:text-gray-400">
+          Aún no tienes notificaciones.
+        </p>
       </div>
     </div>
   </div>
 )}
-          
-);
-};  
-  export default HomePage;
-      
+
+export default HomePage;
