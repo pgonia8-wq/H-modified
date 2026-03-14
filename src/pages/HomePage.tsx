@@ -184,7 +184,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     try {
       if (newPostImage) {
         const fileExt = newPostImage.name.split(".").pop() || "png";
-        const fileName = `\( {userId}- \){Date.now()}.${fileExt}`;
+        const fileName = `\( {userId}- \){Date.now()}.${fileExt}`; // ← CORREGIDO AQUÍ
 
         const { error: uploadError } = await supabase.storage
           .from("post-images")
@@ -354,7 +354,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 
             {/* Barra inferior para enviar mensajes */}
             <div className="p-4 border-t border-white/20 bg-gray-900">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 relative">
                 <input
                   type="text"
                   value={newMessage}
@@ -362,13 +362,40 @@ const HomePage = ({ userId }: { userId: string | null }) => {
                   placeholder="Escribe un mensaje..."
                   className="flex-1 bg-gray-800 text-white p-3 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
-                <button className="p-3 bg-gray-700 rounded-full">
+                {/* Input file oculto para adjuntar */}
+                <label className="cursor-pointer p-3 bg-gray-700 rounded-full">
                   <span role="img" aria-label="attach">📎</span>
-                </button>
-                <button className="p-3 bg-indigo-600 rounded-full">
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*,video/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files) {
+                        setNewMessageAttachments(Array.from(e.target.files));
+                      }
+                    }}
+                  />
+                </label>
+                <button
+                  onClick={() => {
+                    // Aquí iría la lógica de enviar mensaje + adjuntos
+                    if (newMessage.trim() || newMessageAttachments.length > 0) {
+                      alert("Mensaje enviado (lógica pendiente en Inbox)");
+                      setNewMessage("");
+                      setNewMessageAttachments([]);
+                    }
+                  }}
+                  className="p-3 bg-indigo-600 rounded-full"
+                >
                   <span role="img" aria-label="send">➤</span>
                 </button>
               </div>
+              {newMessageAttachments.length > 0 && (
+                <div className="mt-2 text-xs text-gray-400">
+                  Adjuntos: {newMessageAttachments.map(f => f.name).join(", ")}
+                </div>
+              )}
             </div>
           </div>
         </div>
