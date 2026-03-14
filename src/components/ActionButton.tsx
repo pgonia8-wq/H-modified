@@ -8,7 +8,11 @@ interface Props {
 }
 
 const ActionButton: React.FC<Props> = ({ labelKey, onClick, className = "" }) => {
-  const { t, language } = useContext(LanguageContext); // Incluimos language para que re-renderice al cambiar
+  const context = useContext(LanguageContext);
+
+  // Fallback seguro: si no hay context, devuelve la clave directamente
+  const t = context?.t || ((key: string) => key);
+  const language = context?.language || "es"; // también fuerza un idioma por defecto
 
   return (
     <button
@@ -22,7 +26,7 @@ const ActionButton: React.FC<Props> = ({ labelKey, onClick, className = "" }) =>
         ${className}
       `}
     >
-      {t(labelKey)} {/* Traducción según el idioma actual */}
+      {t(labelKey)}
     </button>
   );
 };
