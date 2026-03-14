@@ -2,7 +2,7 @@ import React, { useEffect, useState, useContext, useRef } from "react";
 import { supabase } from "../supabaseClient";
 import { ThemeContext } from "../lib/ThemeContext";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
-import { t } from '../LanguageContext';
+import { useLanguage } from '../LanguageContext';
 
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
@@ -55,7 +55,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   showUpgradeButton,
   onOpenChat,
 }) => {
-  
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
