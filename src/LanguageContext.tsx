@@ -1,70 +1,65 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, { createContext, useState, useContext, ReactNode } from "react";
 
 type Language = "es" | "en";
 
-interface LanguageContextType {
+interface Translations {
+  [key: string]: string;
+}
+
+interface LanguageContextProps {
   language: Language;
   setLanguage: (lang: Language) => void;
   t: (key: string) => string;
 }
 
-const translations: Record<Language, Record<string, string>> = {
+const translations: Record<Language, Translations> = {
   es: {
-    post: "Publicar",
-    cancel: "Cancelar",
-    notifications: "Notificaciones",
-    messages: "Mensajes",
-    write_something: "¿Qué está pasando?",
+    post: "Post",
     create_post: "Crear post",
-    attach: "📎",
-    send: "➤",
-    message_sent: "✅ Mensaje enviado correctamente",
-    no_notifications: "Aún no tienes notificaciones",
-    write_message: "Escribe un mensaje...",
-    avatar_placeholder: "H",
+    whats_happening: "¿Qué está pasando?",
+    cancel: "Cancelar",
+    publish: "Publicar",
+    messages: "Mensajes",
+    write_a_message: "Escribe un mensaje...",
+    attachments: "Adjuntos",
+    notifications: "Notificaciones",
+    no_notifications: "Aún no tienes notificaciones.",
+    write_before_posting: "Escribe algo antes de publicar",
   },
   en: {
     post: "Post",
-    cancel: "Cancel",
-    notifications: "Notifications",
-    messages: "Messages",
-    write_something: "What's happening?",
     create_post: "Create Post",
-    attach: "📎",
-    send: "➤",
-    message_sent: "✅ Message sent successfully",
-    no_notifications: "You have no notifications",
-    write_message: "Write a message...",
-    avatar_placeholder: "H",
+    whats_happening: "What's happening?",
+    cancel: "Cancel",
+    publish: "Publish",
+    messages: "Messages",
+    write_a_message: "Write a message...",
+    attachments: "Attachments",
+    notifications: "Notifications",
+    no_notifications: "You have no notifications yet.",
+    write_before_posting: "Write something before posting",
   },
 };
 
-const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+const LanguageContext = createContext<LanguageContextProps>({
+  language: "es",
+  setLanguage: () => {},
+  t: (key: string) => key,
+});
 
 export const LanguageProvider = ({ children }: { children: ReactNode }) => {
   const [language, setLanguage] = useState<Language>("es");
 
-  useEffect(() => {
-    const saved = sessionStorage.getItem("language") as Language | null;
-    if (saved) setLanguage(saved);
-  }, []);
-
-  const changeLanguage = (lang: Language) => {
-    setLanguage(lang);
-    sessionStorage.setItem("language", lang);
+  const t = (key: string) => {
+    return translations[language][key] || key;
   };
 
-  const t = (key: string) => translations[language][key] || key;
-
   return (
-    <LanguageContext.Provider value={{ language, setLanguage: changeLanguage, t }}>
+    <LanguageContext.Provider value={{ language, setLanguage, t }}>
       {children}
     </LanguageContext.Provider>
   );
 };
 
-export const useLanguage = () => {
-  const context = useContext(LanguageContext);
-  if (!context) throw new Error("useLanguage must be used within LanguageProvider");
-  return context;
-};
+export const useLanguage = () => useContext(LanguageContext);
+export { LanguageContext };
