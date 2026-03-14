@@ -4,6 +4,7 @@ import { ThemeContext } from "../lib/ThemeContext";
 import { useFollow } from "../lib/useFollow";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { useLanguage } from "../LanguageContext";
+
 interface PostCardProps {
   post: any;
   currentUserId: string | null;
@@ -13,33 +14,9 @@ const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { theme } = useContext(ThemeContext);
-  const { t } = useLanguage(); // <-- Contexto de idioma
+  const { t } = useLanguage();
   const postRef = useRef<HTMLDivElement | null>(null);
   const viewRegistered = useRef(false);
-
-  useEffect(() => {
-    if (!postRef.current || viewRegistered.current) return;
-
-    const observer = new IntersectionObserver(
-      async (entries) => {
-        const entry = entries[0];
-        if (entry.isIntersecting && !viewRegistered.current) {
-          viewRegistered.current = true;
-          try {
-            await supabase.rpc("increment_post_views", {
-              post_id_input: post.id,
-            });
-          } catch (err) {
-            console.error(t("error_registering_view"), err);
-          }
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.6 }
-    );
-    observer.observe(postRef.current);
-    return () => observer.disconnect();
-  }, [post.id, t]);
 
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
@@ -60,6 +37,28 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
 
+  // Observer para registrar vistas
+  useEffect(() => {
+    if (!postRef.current || viewRegistered.current) return;
+    const observer = new IntersectionObserver(
+      async (entries) => {
+        const entry = entries[0];
+        if (entry.isIntersecting && !viewRegistered.current) {
+          viewRegistered.current = true;
+          try {
+            await supabase.rpc("increment_post_views", { post_id_input: post.id });
+          } catch (err) {
+            console.error(t("error_registrando_view"), err);
+          }
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.6 }
+    );
+    observer.observe(postRef.current);
+    return () => observer.disconnect();
+  }, [post.id, t]);
+
   // Real-time updates
   useEffect(() => {
     if (!post.id) return;
@@ -78,7 +77,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     return () => supabase.removeChannel(channel);
   }, [post.id, likes, comments, reposts]);
 
-  // Load comments
+  // Cargar comentarios
   useEffect(() => {
     if (showComments && post.id) {
       const fetchComments = async () => {
@@ -113,8 +112,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           }));
           setCommentsList(enriched);
         } catch (err: any) {
-          console.error(t("error_loading_comments"), err);
-          setError(t("could_not_load_comments"));
+          console.error(t("error_cargando_comentarios"), err);
+          setError(t("error_cargando_comentarios"));
         } finally {
           setLoadingComments(false);
         }
@@ -123,9 +122,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   }, [showComments, post.id, t]);
 
-  // Handlers: like, comment, repost, tip, boost, chat
+  // Handlers
   const handleLike = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
     setLoadingAction("like");
     try {
       const { data: existing } = await supabase
@@ -134,6 +133,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         .eq("post_id", post.id)
         .eq("user_id", currentUserId)
         .maybeSingle();
+
       if (existing) {
         await supabase.from("likes").delete().eq("id", existing.id);
         await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
@@ -146,15 +146,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         setLikes(likes + 1);
       }
     } catch (err: any) {
-      setError(t("error_liking") + ": " + err.message);
+      setError(t("error_al_dar_like") + ": " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleComment = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
-    if (!commentInput.trim()) return setError(t("write_a_comment"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (!commentInput.trim()) return setError(t("escribe_comentario"));
     setLoadingAction("comment");
     try {
       const { error } = await supabase.from("comments").insert({
@@ -169,7 +169,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       setShowCommentInput(false);
       setComments(comments + 1);
     } catch (err: any) {
-      setError(t("error_commenting") + ": " + err.message);
+      setError(t("error_al_comentar") + ": " + err.message);
     } finally {
       setLoadingAction(null);
     }
@@ -178,7 +178,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const handleRepost = () => setShowRepostModal(true);
 
   const confirmRepost = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
     setLoadingAction("repost");
     setShowRepostModal(false);
     try {
@@ -190,17 +190,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       if (error) throw error;
       await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
       setReposts(reposts + 1);
-      alert(t("reposted"));
+      alert(t("repostear"));
     } catch (err: any) {
-      setError(t("error_reposting") + ": " + err.message);
+      setError(t("error_al_repostear") + ": " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const confirmQuote = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
-    if (!quoteInput.trim()) return setError(t("write_to_quote"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (!quoteInput.trim()) return setError(t("escribe_para_citar"));
     setLoadingAction("repost");
     setShowRepostModal(false);
     try {
@@ -211,18 +211,18 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         timestamp: new Date().toISOString(),
       });
       if (error) throw error;
-      alert(t("post_quoted"));
+      alert(t("post_citado"));
       setQuoteInput("");
     } catch (err: any) {
-      setError(t("error_quoting") + ": " + err.message);
+      setError(t("error_al_citar") + ": " + err.message);
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleTip = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
-    if (tipAmount === "" || Number(tipAmount) < 1) return setError(t("min_1_wld"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
+    if (tipAmount === "" || Number(tipAmount) < 1) return setError(t("min_wld"));
     setLoadingAction("tip");
     setError(null);
     try {
@@ -235,19 +235,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             token_amount: tokenToDecimals(Number(tipAmount), Tokens.WLD).toString(),
           },
         ],
-        description: t("tip_post"),
+        description: t("tip"),
       });
-      if (payRes?.finalPayload?.status === "success") alert(t("tip_sent"));
-      else alert(t("payment_failed"));
+      if (payRes?.finalPayload?.status === "success") alert(t("tip_enviado"));
+      else alert(t("pago_cancelado"));
     } catch (err: any) {
-      setError(t("error_tip") + ": " + (err.message || t("payment_could_not_start")));
+      setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
   };
 
   const handleBoost = async () => {
-    if (!currentUserId) return setError(t("must_be_logged_in"));
+    if (!currentUserId) return setError(t("debes_estar_logueado"));
     setLoadingAction("boost");
     setError(null);
     try {
@@ -260,12 +260,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
           },
         ],
-        description: t("boost_post"),
+        description: t("boost_5_wld"),
       });
-      if (payRes?.finalPayload?.status === "success") alert(t("boost_sent"));
-      else alert(t("payment_failed"));
+      if (payRes?.finalPayload?.status === "success") alert(t("boost_enviado"));
+      else alert(t("pago_cancelado"));
     } catch (err: any) {
-      setError(t("error_boost") + ": " + (err.message || t("payment_could_not_start")));
+      setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
@@ -279,17 +279,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         reference: `chat-${Date.now()}`,
         to: RECEIVER,
         tokens: [
-          {
-            symbol: Tokens.WLD,
-            token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
-          },
+          { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
         ],
-        description: t("subscription_chat_creators"),
+        description: t("chat_exclusivo"),
       });
       if (payRes?.finalPayload?.status === "success") window.location.href = "/chat/tokens";
-      else alert(t("payment_cancelled"));
+      else alert(t("pago_cancelado"));
     } catch (err: any) {
-      setError(t("error_processing_payment") + ": " + (err.message || t("payment_could_not_start")));
+      setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
     } finally {
       setLoadingAction(null);
     }
@@ -339,7 +336,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"
             } hover:opacity-90`}
           >
-            {isFollowing ? t("following") : t("follow")}
+            {isFollowing ? t("siguiendo") : t("seguir")}
           </button>
         )}
       </div>
@@ -399,7 +396,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             disabled={loadingAction === "boost"}
             className="px-4 py-1 bg-purple-600 text-white rounded-full text-xs hover:bg-purple-700 transition disabled:opacity-50"
           >
-            {t("boost")} 5 WLD
+            {t("boost_5_wld")}
           </button>
         </div>
       </div>
@@ -411,7 +408,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             type="text"
             value={commentInput}
             onChange={(e) => setCommentInput(e.target.value)}
-            placeholder={t("write_a_comment")}
+            placeholder={t("escribe_comentario")}
             className="flex-1 bg-gray-800 p-2 rounded text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
           <button
@@ -419,7 +416,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             disabled={loadingAction === "comment" || !commentInput.trim()}
             className="px-4 py-2 bg-blue-600 text-white rounded text-sm disabled:opacity-50"
           >
-            {loadingAction === "comment" ? "..." : t("send")}
+            {loadingAction === "comment" ? "..." : t("enviar")}
           </button>
         </div>
       )}
@@ -431,15 +428,15 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             onClick={() => setShowComments(!showComments)}
             className="text-blue-400 hover:text-blue-300 text-sm"
           >
-            {showComments ? t("hide") : t("view")} {comments} {comments !== 1 ? t("comments") : t("comment")}
+            {showComments ? t("ocultar_comentarios") : t("ver_comentarios")} {comments}
           </button>
 
           {showComments && (
             <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
               {loadingComments ? (
-                <p className="text-gray-500 text-sm">{t("loading_comments")}</p>
+                <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
               ) : commentsList.length === 0 ? (
-                <p className="text-gray-500 text-sm">{t("no_comments_yet")}</p>
+                <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
               ) : (
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
@@ -452,15 +449,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             </div>
           )}
         </div>
-      )}
-
       {/* Chat */}
       {currentUserId && (
         <button
           onClick={handleChatCreadores}
           className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
         >
-          {t("exclusive_chat_creators")}
+          {t("chat_exclusivo")}
         </button>
       )}
 
@@ -482,17 +477,17 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               <button
                 onClick={() => {
                   setShowRepostModal(false);
-                  alert(t("write_comment_to_quote")); // placeholder para el modal de cita
+                  alert(t("escribe_para_citar")); // placeholder para el modal de cita
                 }}
                 className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
               >
-                {t("quote_post")}
+                {t("citar_post")}
               </button>
               <button
                 onClick={() => setShowRepostModal(false)}
                 className="py-3 text-gray-400 hover:text-gray-300 transition"
               >
-                {t("cancel")}
+                {t("cancelar")}
               </button>
             </div>
           </div>
