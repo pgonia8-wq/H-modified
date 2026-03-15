@@ -107,6 +107,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
     fetchSlots();
   }, [selectedTier]);
+
   const handleUpgrade = () => {
     setShowUpgradeOptions(true);
   };
