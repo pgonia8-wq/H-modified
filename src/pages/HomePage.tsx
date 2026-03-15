@@ -9,32 +9,45 @@ import Inbox from "./chat/Inbox";
 
 const PAGE_SIZE = 8;
 
-const HomePage = ({ userId }: { userId: string | null }) => {
+interface HomePageProps {
+  userId: string | null;
+  username: string | null;  // recibido desde App.tsx
+  wallet: string | null;
+  verified: boolean;
+  error: string | null;
+  verifying: boolean;
+  setUserId: (id: string | null) => void;
+  verifyUser: () => void;
+}
+
+const HomePage: React.FC<HomePageProps> = ({
+  userId,
+  username,
+  wallet,
+  verified,
+  error,
+  verifying,
+  setUserId,
+  verifyUser,
+}) => {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const [page, setPage] = useState(0);
   const [hasMore, setHasMore] = useState(true);
-
   const [profile, setProfile] = useState<any>(null);
   const [profileLoading, setProfileLoading] = useState(true);
-
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [showNewPostModal, setShowNewPostModal] = useState(false);
-
   const [showInbox, setShowInbox] = useState(false);
-
   const [newPostContent, setNewPostContent] = useState("");
   const [newPostImage, setNewPostImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
   const [showNotifications, setShowNotifications] = useState(false);
   const [unreadMessages, setUnreadMessages] = useState(0);
   const [unreadTotal, setUnreadTotal] = useState(0);
   const [newMessage, setNewMessage] = useState("");
   const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>([]);
-  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null); // <--- necesario para mensajes
+  const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
 
   const { theme, toggleTheme } = useContext(ThemeContext);
   const { language, setLanguage, t } = useContext(LanguageContext);
@@ -65,49 +78,49 @@ const HomePage = ({ userId }: { userId: string | null }) => {
       else setPage((prev) => prev + 1);
     } catch (err: any) {
       console.error("Error fetching posts:", err);
-      setError(err.message);
     } finally {
       setLoading(false);
     }
   }, [hasMore]);
 
-  const fetchOrCreateProfile = useCallback(async (uid: string) => {
-    if (!uid) return;
+  // -------------------------
+  // Fetch o Upsert profile
+  // -------------------------
+  const fetchOrUpsertProfile = useCallback(async () => {
+    if (!userId) return;
     setProfileLoading(true);
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
-        .select("*")
-        .eq("id", uid)
+        .upsert(
+          {
+            id: userId,
+            username: username || `user_${userId.slice(0, 8)}`,
+            wallet: wallet || null,
+            verified: verified,
+            verified_at: new Date().toISOString(),
+          },
+          { onConflict: ["id"], returning: "representation" }
+        )
         .maybeSingle();
-
-      if (data) {
-        setProfile(data);
-        return;
-      }
-
-      const res = await fetch("/api/createProfile", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: uid }),
-      });
-
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-      setProfile(result.profile);
+      if (error) throw error;
+      setProfile(data);
     } catch (err: any) {
       console.error("[HOME] profile error:", err);
     } finally {
       setProfileLoading(false);
     }
-  }, []);
+  }, [userId, username, wallet, verified]);
 
   useEffect(() => {
     if (!userId) return;
-    fetchOrCreateProfile(userId);
+    fetchOrUpsertProfile();
     fetchPosts(true);
-  }, [userId, fetchOrCreateProfile, fetchPosts]);
+  }, [userId, fetchOrUpsertProfile, fetchPosts]);
 
+  // -------------------------
+  // Realtime posts
+  // -------------------------
   useEffect(() => {
     const channel = supabase
       .channel("realtime-posts")
@@ -129,13 +142,15 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     return () => supabase.removeChannel(channel);
   }, []);
 
+  // -------------------------
+  // Scroll infinito
+  // -------------------------
   useEffect(() => {
     const handleScroll = () => {
       if (!containerRef.current) return;
       const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
       if (scrollTop + clientHeight >= scrollHeight - 150) fetchPosts();
     };
-
     const el = containerRef.current;
     el?.addEventListener("scroll", handleScroll);
     return () => el?.removeEventListener("scroll", handleScroll);
@@ -271,6 +286,9 @@ const HomePage = ({ userId }: { userId: string | null }) => {
     }
   };
 
+  // -------------------------
+  // Render
+  // -------------------------
   return (
     <div
       ref={containerRef}
@@ -283,7 +301,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         <img src="/logo.png" className="w-11 h-11 object-contain" alt="Logo" />
 
         <div className="flex gap-3">
-          {/* --- ActionButton con idioma --- */}
           <ActionButton
             labelKey="post"
             onClick={() => setShowNewPostModal(true)}
@@ -314,7 +331,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             {theme === "dark" ? "☀️" : "🌙"}
           </button>
 
-          {/* LANGUAGE SELECTOR */}
           <button
             onClick={() => setLanguage(language === "es" ? "en" : "es")}
             className="px-4 py-2 bg-gray-600 text-white rounded-full"
@@ -343,11 +359,11 @@ const HomePage = ({ userId }: { userId: string | null }) => {
           error={error}
           currentUserId={userId}
           userTier={profile?.tier || "free"}
-          onUpgradeSuccess={() => fetchOrCreateProfile(userId || "")}
+          onUpgradeSuccess={() => fetchOrUpsertProfile()}
         />
       </main>
 
-      {/* MODALS (PROFILE, NEW POST, INBOX, NOTIFICATIONS) */}
+      {/* MODALS */}
       {showProfileModal && (
         <ProfileModal
           currentUserId={userId}
@@ -355,7 +371,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         />
       )}
 
-      {/* MODAL NUEVO POST */}
       {showNewPostModal && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
           <div className="bg-gray-900 rounded-2xl w-full max-w-md p-6">
@@ -399,7 +414,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {/* MODAL INBOX */}
       {showInbox && userId && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
           <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[90vh] flex flex-col border border-white/10 shadow-lg">
@@ -413,7 +427,7 @@ const HomePage = ({ userId }: { userId: string | null }) => {
             <div className="flex-1 overflow-y-auto p-4">
               <Inbox
                 currentUserId={userId}
-                setSelectedChatUserId={setSelectedChatUserId} // <-- necesario para seleccionar chat
+                setSelectedChatUserId={setSelectedChatUserId}
               />
             </div>
 
@@ -459,7 +473,6 @@ const HomePage = ({ userId }: { userId: string | null }) => {
         </div>
       )}
 
-      {/* MODAL NOTIFICACIONES */}
       {showNotifications && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white dark:bg-gray-900 rounded-xl w-[90%] max-w-md p-4">
@@ -482,4 +495,3 @@ const HomePage = ({ userId }: { userId: string | null }) => {
 };
 
 export default HomePage;
-  
