@@ -216,9 +216,31 @@ const FeedPage: React.FC<FeedPageProps> = ({
     }
   };
 
+  import React from "react";
+import PostCard from "./PostCard";
+import { useTheme } from "../lib/ThemeContext"; // <-- importamos ThemeContext
+
+const FeedPage = ({
+  sortedPosts,
+  currentUserId,
+  loading,
+  error,
+  showUpgradeOptions,
+  handleUpgrade,
+  selectTier,
+  showSlideModal,
+  selectedTier,
+  price,
+  cancelUpgrade,
+  confirmUpgrade,
+  loadingUpgrade,
+  upgradeError,
+  t,
+}: any) => {
+  const { username } = useTheme(); // <-- obtenemos username global
+
   return (
     <div className="flex flex-col p-4">
-
       <div className="mb-6">
         <button
           onClick={handleUpgrade}
@@ -230,7 +252,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       {showUpgradeOptions && (
         <div className="space-y-4 mb-6">
-
           <button
             onClick={() => selectTier("premium")}
             className="w-full py-4 rounded-xl bg-blue-600 text-white font-bold"
@@ -244,7 +265,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
           >
             {t ? t("premium_plus") : "Premium+"}
           </button>
-
         </div>
       )}
 
@@ -255,7 +275,12 @@ const FeedPage: React.FC<FeedPageProps> = ({
       ) : (
         <div className="space-y-5">
           {sortedPosts?.map((post) => (
-            <PostCard key={post.id} post={post} currentUserId={currentUserId} />
+            <PostCard
+              key={post.id}
+              post={post}
+              currentUserId={currentUserId}
+              username={username} // <-- pasamos username global a cada PostCard
+            />
           ))}
         </div>
       )}
@@ -266,9 +291,7 @@ const FeedPage: React.FC<FeedPageProps> = ({
 
       {showSlideModal && selectedTier && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50">
-
           <div className="w-full max-w-md bg-gray-900 rounded-t-3xl p-6">
-
             <h2 className="text-xl font-bold text-white mb-4">
               {t ? t("beneficios_de") : "Beneficios de"} {selectedTier}
             </h2>
@@ -278,7 +301,6 @@ const FeedPage: React.FC<FeedPageProps> = ({
             </p>
 
             <div className="flex gap-4">
-
               <button
                 onClick={cancelUpgrade}
                 className="flex-1 py-3 bg-gray-700 text-white rounded-2xl"
@@ -291,16 +313,18 @@ const FeedPage: React.FC<FeedPageProps> = ({
                 disabled={loadingUpgrade}
                 className="flex-1 py-3 bg-yellow-500 text-black rounded-2xl font-bold"
               >
-                {loadingUpgrade ? (t ? t("procesando") : "Procesando...") : (t ? t("aceptar") : "Aceptar")}
+                {loadingUpgrade
+                  ? t
+                    ? t("procesando")
+                    : "Procesando..."
+                  : t
+                  ? t("aceptar")
+                  : "Aceptar"}
               </button>
-
             </div>
-
           </div>
-
         </div>
       )}
-
     </div>
   );
 };
