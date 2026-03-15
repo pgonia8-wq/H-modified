@@ -421,6 +421,29 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
+      import React from "react";
+import { useTheme } from "../lib/ThemeContext"; // <-- importamos ThemeContext
+
+const PostCard = ({
+  comments,
+  commentsList,
+  loadingComments,
+  showComments,
+  setShowComments,
+  currentUserId,
+  handleChatCreadores,
+  error,
+  showRepostModal,
+  confirmRepost,
+  confirmQuote,
+  quoteInput,
+  setQuoteInput,
+  t,
+}: any) => {
+  const { username } = useTheme(); // <-- obtenemos username global
+
+  return (
+    <div className="bg-gray-900 p-4 rounded-xl shadow-md">
       {/* Comments list */}
       {comments > 0 && (
         <div className="mt-4">
@@ -433,20 +456,19 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
           {showComments && (
             <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
-              
-            {loadingComments ? (
-           <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
-            ) : commentsList.length === 0 ? (
-             <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
+              {loadingComments ? (
+                <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
+              ) : commentsList.length === 0 ? (
+                <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
               ) : (
-              commentsList.map((c) => (
-          <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
-            <p className="font-bold">{c.profiles?.username || `@anon-${c.user_id.slice(0, 8)}`}</p>
-            <p className="text-gray-300">{c.content}</p>
-            <p className="text-xs text-gray-500 mt-1">{new Date(c.timestamp).toLocaleString()}</p>
-             </div>
-  
-
+                commentsList.map((c) => (
+                  <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
+                    <p className="font-bold">{c.profiles?.username || username}</p>
+                    <p className="text-gray-300">{c.content}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(c.timestamp).toLocaleString()}
+                    </p>
+                  </div>
                 ))
               )}
             </div>
