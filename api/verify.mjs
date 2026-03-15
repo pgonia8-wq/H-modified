@@ -1,20 +1,19 @@
 // /api/verify.mjs
 import { createClient } from "@supabase/supabase-js";
 
-export default async (request) => {
-  const SUPABASE_URL = process.env.SUPABASE_URL;
-  const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-    console.error("[VERIFY] Missing Supabase env vars");
-    return new Response(
-      JSON.stringify({ success: false, error: "Missing Supabase env vars" }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
-    );
-  }
+if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+  console.error("[VERIFY] Missing Supabase env vars");
+  // NO usamos return fuera de función
+  // lanzamos error para detener la carga
+  throw new Error("Missing Supabase env vars");
+}
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+export default async function handler(request) {
   console.log("[VERIFY] Request recibida:", {
     method: request.method,
     timestamp: new Date().toISOString(),
@@ -28,7 +27,10 @@ export default async (request) => {
   }
 
   try {
-    const bodyText = await request.text();
+    // --- CORRECCIÓN: request.text no existe en Node Serverless ---
+    const bodyText = typeof request.body === "string"
+      ? request.body
+      : JSON.stringify(request.body || {});
     console.log("[VERIFY] Body raw length:", bodyText.length);
 
     let body;
@@ -134,4 +136,4 @@ export default async (request) => {
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
-};
+        }
