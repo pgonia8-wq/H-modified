@@ -291,7 +291,8 @@ const handleRepost = async () => {
     }
   };
 
-  const handleTip = async () => {
+  // Reemplazar handleTip por esto
+const handleTip = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("tip");
   setError(null);
@@ -303,7 +304,7 @@ const handleRepost = async () => {
     return;
   }
 
-  // Validar cantidad
+  // Validar cantidad mínima
   if (tipAmount === "" || Number(tipAmount) < 1) {
     setError(t("min_wld"));
     setLoadingAction(null);
@@ -332,12 +333,14 @@ const handleRepost = async () => {
       alert(t("pago_cancelado"));
     }
   } catch (err: any) {
-    setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
+    setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
   } finally {
     setLoadingAction(null);
   }
 };
-  const handleBoost = async () => {
+
+// Reemplazar handleBoost por esto
+const handleBoost = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("boost");
   setError(null);
@@ -368,10 +371,11 @@ const handleRepost = async () => {
       alert(t("pago_cancelado"));
     }
   } catch (err: any) {
-    setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
+    setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
   } finally {
     setLoadingAction(null);
   }
+};
 };
 
   const handleChatCreadores = async () => {
