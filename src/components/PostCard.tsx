@@ -121,6 +121,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       fetchComments();
     }
   }, [showComments, post.id, t]);
+
   // Handlers
   const handleLike = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
@@ -298,7 +299,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   return (
     <div
       ref={postRef}
-      className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}
+      className={`p-4 rounded-xl ${
+        theme === "dark" ? "bg-gray-900" : "bg-gray-100"
+      } border border-gray-700 mb-4 shadow-md`}
     >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
@@ -307,7 +310,11 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           onClick={openUserProfile}
         >
           {post.profiles?.avatar_url ? (
-            <img src={post.profiles.avatar_url} alt={t("avatar")} className="w-full h-full object-cover" />
+            <img
+              src={post.profiles.avatar_url}
+              alt={t("avatar")}
+              className="w-full h-full object-cover"
+            />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
               {globalUsername?.[0]?.toUpperCase() || "?"}
@@ -316,8 +323,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
 
         <div className="flex-1">
-          <p className="font-bold text-lg">{globalUsername || post.profiles?.username}</p>
-          <p className="text-sm text-gray-500">@{globalUsername || post.profiles?.username}</p>
+          <p className="font-bold text-lg">
+            {globalUsername || post.profiles?.username}
+          </p>
+          <p className="text-sm text-gray-500">
+            @{globalUsername || post.profiles?.username}
+          </p>
           <p className="text-xs text-gray-400">
             {new Date(post.timestamp).toLocaleString("es-ES", {
               hour: "2-digit",
@@ -332,7 +343,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           <button
             onClick={toggleFollow}
             className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
-              isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"
+              isFollowing
+                ? "bg-gray-700 text-gray-300"
+                : "bg-purple-600 text-white"
             } hover:opacity-90`}
           >
             {isFollowing ? t("siguiendo") : t("seguir")}
@@ -341,7 +354,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       </div>
 
       {/* Content */}
-      <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">{post.content}</p>
+      <p className="text-white whitespace-pre-wrap mb-4 leading-relaxed">
+        {post.content}
+      </p>
 
       {/* Actions */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
@@ -349,7 +364,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           <button
             onClick={handleLike}
             disabled={loadingAction === "like"}
-            className={`flex items-center gap-1 transition ${liked ? "text-red-500" : "hover:text-red-500"}`}
+            className={`flex items-center gap-1 transition ${
+              liked ? "text-red-500" : "hover:text-red-500"
+            }`}
           >
             {liked ? "❤️" : "♡"} {likes}
           </button>
@@ -377,7 +394,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               min="1"
               step="0.1"
               value={tipAmount}
-              onChange={(e) => setTipAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              onChange={(e) =>
+                setTipAmount(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
               placeholder="1"
             />
@@ -427,21 +446,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             onClick={() => setShowComments(!showComments)}
             className="text-blue-400 hover:text-blue-300 text-sm"
           >
-            {showComments ? t("ocultar_comentarios") : t("ver_comentarios")} {comments}
+            {showComments
+              ? t("ocultar_comentarios")
+              : t("ver_comentarios")}{" "}
+            {comments}
           </button>
 
           {showComments && (
             <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
               {loadingComments ? (
-                <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
+                <p className="text-gray-500 text-sm">
+                  {t("cargando_comentarios")}
+                </p>
               ) : commentsList.length === 0 ? (
-                <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
+                <p className="text-gray-500 text-sm">
+                  {t("no_hay_comentarios")}
+                </p>
               ) : (
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
-                    <p className="font-bold">{globalUsername || c.profiles?.username}</p>
+                    <p className="font-bold">
+                      {globalUsername || c.profiles?.username}
+                    </p>
                     <p className="text-gray-300">{c.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">{new Date(c.timestamp).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(c.timestamp).toLocaleString()}
+                    </p>
                   </div>
                 ))
               )}
@@ -467,7 +497,10 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {showRepostModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-white text-xl font-bold mb-4 text-center">{t("repost")}</h3>
+            <h3 className="text-white text-xl font-bold mb-4 text-center">
+              {t("repost")}
+            </h3>
+
             <div className="flex flex-col gap-4">
               <button
                 onClick={confirmRepost}
@@ -475,12 +508,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               >
                 {t("repost")}
               </button>
+
               <button
                 onClick={confirmQuote}
                 className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
               >
                 {t("citar_post")}
               </button>
+
               <input
                 type="text"
                 value={quoteInput}
@@ -488,6 +523,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
                 placeholder={t("escribe_para_citar")}
                 className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
               />
+
               <button
                 onClick={() => setShowRepostModal(false)}
                 className="py-3 text-gray-400 hover:text-gray-300 transition"
@@ -503,3 +539,5 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 };
 
 export default PostCard;
+
+        
