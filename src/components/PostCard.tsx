@@ -53,7 +53,28 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [quoteInput, setQuoteInput] = useState("");
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
-
+   // Estado para el perfil del autor del post
+  const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
+   +  // Cargar perfil del autor del post desde profiles
+  useEffect(() => {
+    const fetchPostProfile = async () => {
+     if (!post.user_id) return;
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("username, avatar_url")
+          .eq("id", post.user_id)
+          .single();
+        if (error) throw error;
+        setPostProfile(data);
+      } catch (err) {
+       console.error("Error cargando perfil del post:", err);
+        setPostProfile({ username: "Desconocido", avatar_url: "" });
+      }
+    };
+    fetchPostProfile();
+  }, [post.user_id]);
+  
   // Registrar vistas
   useEffect(() => {
     if (!postRef.current || viewRegistered.current) return;
@@ -326,25 +347,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           className="w-12 h-12 rounded-full overflow-hidden bg-gray-800 border-2 border-purple-600 cursor-pointer"
           onClick={openUserProfile}
         >
-          {post.profiles?.avatar_url ? (
-            <img
-              src={post.profiles.avatar_url}
-              alt={t("avatar")}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
-              {globalUsername?.[0]?.toUpperCase() || "?"}
-            </div>
-          )}
+          {postProfile?.avatar_url ? (
+  <img
+     src={postProfile.avatar_url}
+    alt={t("avatar")}
+    className="w-full h-full object-cover"
+   />
+ ) : (
+   <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
+    {postProfile?.username?.[0]?.toUpperCase() || "?"}
+  </div>
+ )}
         </div>
 
         <div className="flex-1">
           <p className="font-bold text-lg">
-  {post.profiles?.username} {currentUserId === post.user_id ? "(Tú)" : ""}
+  {postProfile?.username} {currentUserId === post.user_id ? "(Tú)" : ""}
 </p>
 <p className="text-sm text-gray-500">
-  @{post.profiles?.username}
+  @{postProfile?.username}
 </p>
           <p className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-900"}`}>
             {getRelativeTime(post.timestamp)}
