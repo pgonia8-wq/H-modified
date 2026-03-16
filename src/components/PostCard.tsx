@@ -327,25 +327,25 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           onClick={openUserProfile}
         >
           {post.profiles?.avatar_url ? (
-  <img
-    src={post.profiles.avatar_url}
-    alt={t("avatar")}
-    className="w-full h-full object-cover"
-  />
-) : (
-  <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
-    {post.profiles?.username?.[0]?.toUpperCase() || "?"}
-  </div>
-)}
+            <img
+              src={post.profiles.avatar_url}
+              alt={t("avatar")}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
+              {globalUsername?.[0]?.toUpperCase() || "?"}
+            </div>
+          )}
         </div>
 
         <div className="flex-1">
           <p className="font-bold text-lg">
-  {post.user_id === currentUserId ? globalUsername : post.profiles?.username || "Desconocido"}
-</p>
-<p className="text-sm text-gray-500">
-  @{post.user_id === currentUserId ? globalUsername : post.profiles?.username || "desconocido"}
-</p>
+            {globalUsername || post.profiles?.username}
+          </p>
+          <p className="text-sm text-gray-500">
+            @{globalUsername || post.profiles?.username}
+          </p>
           <p className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-900"}`}>
             {getRelativeTime(post.timestamp)}
          </p>
