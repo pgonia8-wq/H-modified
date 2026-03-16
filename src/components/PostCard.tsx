@@ -376,7 +376,7 @@ const handleBoost = async () => {
     setLoadingAction(null);
   }
 };
-};
+
 
   const handleChatCreadores = async () => {
     setLoadingAction("subscription");
