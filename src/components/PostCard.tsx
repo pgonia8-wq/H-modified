@@ -511,55 +511,60 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       )}
 
       {/* Chat exclusico */}
-      {currentUserId && (
+{currentUserId && (
+  <button
+    onClick={handleChatCreadores}
+    className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
+  >
+    {t("chat_exclusivo")}
+  </button>
+)}
+
+{/* Mostrar error */}
+{error && (
+  <p className="text-red-500 text-sm mt-3">
+    {error}
+  </p>
+)}
+
+{/* Modal Repost / Citar */}
+{showRepostModal && (
+  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
+      <h3 className="text-white text-xl font-bold mb-4 text-center">
+        {t("repost")}
+      </h3>
+
+      <div className="flex flex-col gap-4">
         <button
-          onClick={handleChatCreadores}
-          className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
+          onClick={confirmRepost}
+          className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
         >
-          {t("chat_exclusivo")}
+          {t("repost")}
         </button>
-      )}
 
-      {/* Error */}
-      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+        <button
+          onClick={confirmQuote}
+          className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
+        >
+          {t("citar_post")}
+        </button>
 
-      {/* Modal Repost/Citar */}
-      {showRepostModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
-            <h3 className="text-white text-xl font-bold mb-4 text-center">{t("repost")}</h3>
-            <div className="flex flex-col gap-4">
-              <button
-                onClick={confirmRepost}
-                className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
-              >
-                {t("repost")}
-              </button>
-              <button
-                onClick={confirmQuote}
-                className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
-              >
-                {t("citar_post")}
-              </button>
-              <input
-                type="text"
-                value={quoteInput}
-                onChange={(e) => setQuoteInput(e.target.value)}
-                placeholder={t("escribe_para_citar")}
-                className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-              />
-              <button
-                onClick={() => setShowRepostModal(false)}
-                className="py-3 text-gray-400 hover:text-gray-300 transition"
-              >
-                {t("cancelar")}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        <input
+          type="text"
+          value={quoteInput}
+          onChange={(e) => setQuoteInput(e.target.value)}
+          placeholder={t("escribe_para_citar")}
+          className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+        />
+
+        <button
+          onClick={() => setShowRepostModal(false)}
+          className="py-3 text-gray-400 hover:text-gray-300 transition"
+        >
+          {t("cancelar")}
+        </button>
+      </div>
     </div>
-  );
-};
-
-export default PostCard;
+  </div>
+)}
