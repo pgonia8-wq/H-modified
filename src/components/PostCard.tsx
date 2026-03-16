@@ -8,6 +8,7 @@ import { useLanguage } from "../LanguageContext";
 // Helper para mostrar la hora relativa
 const getRelativeTime = (timestamp: string | null) => {
   if (!timestamp) return "Desconocida";
+
   const now = new Date();
   const date = new Date(timestamp);
   const diffMs = now.getTime() - date.getTime();
@@ -21,7 +22,6 @@ const getRelativeTime = (timestamp: string | null) => {
   const diffD = Math.floor(diffH / 24);
   return `hace ${diffD} ${diffD === 1 ? "día" : "días"}`;
 };
-
 interface PostCardProps {
   post: any;
   currentUserId: string | null;
@@ -30,7 +30,7 @@ interface PostCardProps {
 const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
 
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
-  const { theme } = useContext(ThemeContext);
+  const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
   const postRef = useRef<HTMLDivElement | null>(null);
   const viewRegistered = useRef(false);
@@ -53,14 +53,12 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [quoteInput, setQuoteInput] = useState("");
 
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
-
-  // Estado para el perfil del autor del post
+   // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
-
-  // Cargar perfil del autor del post
+   +  // Cargar perfil del autor del post desde profiles
   useEffect(() => {
     const fetchPostProfile = async () => {
-      if (!post.user_id) return;
+     if (!post.user_id) return;
       try {
         const { data, error } = await supabase
           .from("profiles")
@@ -70,13 +68,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         if (error) throw error;
         setPostProfile(data);
       } catch (err) {
-        console.error("Error cargando perfil del post:", err);
+       console.error("Error cargando perfil del post:", err);
         setPostProfile({ username: "Desconocido", avatar_url: "" });
       }
     };
     fetchPostProfile();
   }, [post.user_id]);
-
+  
   // Registrar vistas
   useEffect(() => {
     if (!postRef.current || viewRegistered.current) return;
@@ -162,100 +160,114 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     }
   }, [showComments, post.id, t]);
 
-  // -----------------------
   // Handlers
-  // -----------------------
-  const handleLike = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("like");
-    try {
-      const { data: existing } = await supabase
-        .from("likes")
-        .select("id")
-        .eq("post_id", post.id)
-        .eq("user_id", currentUserId)
-        .maybeSingle();
+  
+const handleLike = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("like");
+  try {
+    const { data: existing } = await supabase
+      .from("likes")
+      .select("id")
+      .eq("post_id", post.id)
+      .eq("user_id", currentUserId)
+      .maybeSingle();
 
-      if (existing) {
-        await supabase.from("likes").delete().eq("id", existing.id);
-        await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
-        setLiked(false);
-        setLikes(likes - 1);
-      } else {
-        await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
-        await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
-        setLiked(true);
-        setLikes(likes + 1);
-      }
-    } catch (err: any) {
-      setError(t("error_al_dar_like") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
+    if (existing) {
+      await supabase.from("likes").delete().eq("id", existing.id);
+      await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
+      setLiked(false);
+      setLikes(likes - 1);
+    } else {
+      await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
+      await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
+      setLiked(true);
+      setLikes(likes + 1);
     }
-  };
+  } catch (err: any) {
+    setError(t("error_al_dar_like") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
 
   const handleComment = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    if (!commentInput.trim()) return setError(t("escribe_comentario"));
-    setLoadingAction("comment");
-    try {
-      const { data: newComment, error } = await supabase
-        .from("comments")
-        .insert({
-          post_id: post.id,
-          user_id: currentUserId,
-          content: commentInput.trim(),
-          timestamp: new Date().toISOString(),
-        })
-        .select()
-        .single();
-      if (error) throw error;
-
-      await supabase.from("posts").update({ comments: comments + 1 }).eq("id", post.id);
-
-      setCommentInput("");
-      setShowCommentInput(false);
-      setComments(comments + 1);
-
-      const { data: profileData } = await supabase
-        .from("profiles")
-        .select("username, avatar_url")
-        .eq("id", currentUserId)
-        .single();
-
-      setCommentsList([{ ...newComment, profiles: profileData }, ...commentsList]);
-    } catch (err: any) {
-      setError(t("error_al_comentar") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
-    }
-  };
-
-  const handleRepost = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("repost");
-    try {
-      await supabase.from("reposts").insert({
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  if (!commentInput.trim()) return setError(t("escribe_comentario"));
+  setLoadingAction("comment");
+  try {
+    // Insertar comentario en Supabase
+    const { data: newComment, error } = await supabase
+      .from("comments")
+      .insert({
         post_id: post.id,
         user_id: currentUserId,
+        content: commentInput.trim(),
         timestamp: new Date().toISOString(),
-      });
+      })
+      .select()
+      .single();
+    if (error) throw error;
 
-      await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
+    // Actualizar contador de comentarios en posts
+    await supabase
+      .from("posts")
+      .update({ comments: comments + 1 })
+      .eq("id", post.id);
 
-      setReposts(reposts + 1);
-      alert(t("repostear"));
-    } catch (err: any) {
-      setError(t("error_al_repostear") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
-    }
-  };
+    // Actualizar estado local
+    setCommentInput("");
+    setShowCommentInput(false);
+    setComments(comments + 1);
 
-  const confirmRepost = () => {
-    handleRepost();
-    setShowRepostModal(false);
-  };
+    // Enriquecer el comentario con perfil
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", currentUserId)
+      .single();
+
+    setCommentsList([
+      { ...newComment, profiles: profileData },
+      ...commentsList,
+    ]);
+  } catch (err: any) {
+    setError(t("error_al_comentar") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
+
+
+  
+const handleRepost = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("repost");
+  try {
+    // Insertar repost en Supabase
+    const { error } = await supabase.from("reposts").insert({
+      post_id: post.id,
+      user_id: currentUserId,
+      timestamp: new Date().toISOString(),
+    });
+    if (error) throw error;
+
+    // Actualizar contador de reposts en posts
+    await supabase
+      .from("posts")
+      .update({ reposts: reposts + 1 })
+      .eq("id", post.id);
+
+    // Actualizar estado local
+    setReposts(reposts + 1);
+    alert(t("repostear"));
+  } catch (err: any) {
+    setError(t("error_al_repostear") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
+
 
   const confirmQuote = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
@@ -263,12 +275,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     setLoadingAction("repost");
     setShowRepostModal(false);
     try {
-      await supabase.from("posts").insert({
+      const { error } = await supabase.from("posts").insert({
         user_id: currentUserId,
         content: quoteInput.trim(),
         quoted_post_id: post.id,
         timestamp: new Date().toISOString(),
       });
+      if (error) throw error;
       alert(t("post_citado"));
       setQuoteInput("");
     } catch (err: any) {
@@ -279,75 +292,87 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   const handleTip = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("tip");
-    setError(null);
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("tip");
+  setError(null);
 
-    if ((post.tier || "free") === "free") {
-      setError(t("no_tips_para_free"));
-      setLoadingAction(null);
-      return;
+  // Validar que el post no sea de usuario tier free
+  if (post.tier === "free") {
+    setError(t("no_tips_para_free"));
+    setLoadingAction(null);
+    return;
+  }
+
+  // Validar cantidad
+  if (tipAmount === "" || Number(tipAmount) < 1) {
+    setError(t("min_wld"));
+    setLoadingAction(null);
+    return;
+  }
+
+  try {
+    const amount = Number(tipAmount);
+
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `tip-${post.id}-${Date.now()}`,
+      to: RECEIVER,
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(amount, Tokens.WLD).toString(),
+        },
+      ],
+      description: t("tip"),
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      alert(t("tip_enviado"));
+      setTipAmount(1); // opcional: reset al valor por defecto
+    } else {
+      alert(t("pago_cancelado"));
     }
-
-    if (tipAmount === "" || Number(tipAmount) < 1) {
-      setError(t("min_wld"));
-      setLoadingAction(null);
-      return;
-    }
-
-    try {
-      const amount = Number(tipAmount);
-
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference: `tip-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() }],
-        description: t("tip"),
-      });
-
-      if (payRes?.finalPayload?.status === "success") {
-        alert(t("tip_enviado"));
-        setTipAmount(1);
-      } else {
-        alert(t("pago_cancelado"));
-      }
-    } catch (err: any) {
-      setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
-    } finally {
-      setLoadingAction(null);
-    }
-  };
-
+  } catch (err: any) {
+    setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
+  } finally {
+    setLoadingAction(null);
+  }
+};
   const handleBoost = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("boost");
-    setError(null);
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("boost");
+  setError(null);
 
-    if ((post.tier || "free") === "free") {
-      setError(t("no_boost_para_free"));
-      setLoadingAction(null);
-      return;
+  // Validar que el post no sea de usuario tier free
+  if (post.tier === "free") {
+    setError(t("no_boost_para_free"));
+    setLoadingAction(null);
+    return;
+  }
+
+  try {
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `boost-${post.id}-${Date.now()}`,
+      to: RECEIVER,
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
+        },
+      ],
+      description: t("boost_5_wld"),
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      alert(t("boost_enviado"));
+    } else {
+      alert(t("pago_cancelado"));
     }
-
-    try {
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference: `boost-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
-        description: t("boost_5_wld"),
-      });
-
-      if (payRes?.finalPayload?.status === "success") {
-        alert(t("boost_enviado"));
-      } else {
-        alert(t("pago_cancelado"));
-      }
-    } catch (err: any) {
-      setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
-    } finally {
-      setLoadingAction(null);
-    }
-  };
+  } catch (err: any) {
+    setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
+  } finally {
+    setLoadingAction(null);
+  }
+};
 
   const handleChatCreadores = async () => {
     setLoadingAction("subscription");
@@ -356,7 +381,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       const payRes = await MiniKit.commandsAsync.pay({
         reference: `chat-${Date.now()}`,
         to: RECEIVER,
-        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+        tokens: [
+          { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
+        ],
         description: t("chat_exclusivo"),
       });
       if (payRes?.finalPayload?.status === "success") window.location.href = "/chat/tokens";
@@ -372,11 +399,13 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
     window.location.href = `/profile/${post.user_id}`;
   };
 
-  // -----------------------
-  // JSX completo
-  // -----------------------
   return (
-    <div ref={postRef} className={`p-4 rounded-xl ${theme === "dark" ? "bg-gray-900" : "bg-gray-100"} border border-gray-700 mb-4 shadow-md`}>
+    <div
+      ref={postRef}
+      className={`p-4 rounded-xl ${
+        theme === "dark" ? "bg-gray-900" : "bg-gray-100"
+      } border border-gray-700 mb-4 shadow-md`}
+    >
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <div
@@ -384,22 +413,39 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
           onClick={openUserProfile}
         >
           {postProfile?.avatar_url ? (
-            <img src={postProfile.avatar_url} alt={t("avatar")} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
-              {postProfile?.username?.[0]?.toUpperCase() || "?"}
-            </div>
-          )}
+  <img
+     src={postProfile.avatar_url}
+    alt={t("avatar")}
+    className="w-full h-full object-cover"
+   />
+ ) : (
+   <div className="w-full h-full flex items-center justify-center text-white text-xl font-bold">
+    {postProfile?.username?.[0]?.toUpperCase() || "?"}
+  </div>
+ )}
         </div>
+
         <div className="flex-1">
-          <p className="font-bold text-lg">{postProfile?.username} {currentUserId === post.user_id ? "(Tú)" : ""}</p>
-          <p className="text-sm text-gray-500">@{postProfile?.username}</p>
+          <p className="font-bold text-lg">
+  {postProfile?.username} {currentUserId === post.user_id ? "(Tú)" : ""}
+</p>
+<p className="text-sm text-gray-500">
+  @{postProfile?.username}
+</p>
           <p className={`text-xs ${theme === "dark" ? "text-gray-400" : "text-gray-900"}`}>
             {getRelativeTime(post.timestamp)}
-          </p>
+         </p>
         </div>
+
         {currentUserId && currentUserId !== post.user_id && (
-          <button onClick={toggleFollow} className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${isFollowing ? "bg-gray-700 text-gray-300" : "bg-purple-600 text-white"} hover:opacity-90`}>
+          <button
+            onClick={toggleFollow}
+            className={`ml-auto px-4 py-1 rounded-full text-sm font-medium transition ${
+              isFollowing
+                ? "bg-gray-700 text-gray-300"
+                : "bg-purple-600 text-white"
+            } hover:opacity-90`}
+          >
             {isFollowing ? t("siguiendo") : t("seguir")}
           </button>
         )}
@@ -408,20 +454,33 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
       {/* Content */}
       <p className={`whitespace-pre-wrap mb-4 leading-relaxed ${theme === "dark" ? "text-white" : "text-gray-900"}`}>
         {post.content}
-      </p>
+        </p>
 
       {/* Actions */}
       <div className="flex justify-between items-center text-gray-400 text-sm mt-4">
         <div className="flex gap-8">
-          <button onClick={handleLike} disabled={loadingAction === "like"} className={`flex items-center gap-1 transition ${liked ? "text-red-500" : "hover:text-red-500"}`}>
+          <button
+            onClick={handleLike}
+            disabled={loadingAction === "like"}
+            className={`flex items-center gap-1 transition ${
+              liked ? "text-red-500" : "hover:text-red-500"
+            }`}
+          >
             {liked ? "❤️" : "♡"} {likes}
           </button>
 
-          <button onClick={() => setShowCommentInput(!showCommentInput)} className="flex items-center gap-1 hover:text-blue-500 transition">
+          <button
+            onClick={() => setShowCommentInput(!showCommentInput)}
+            className="flex items-center gap-1 hover:text-blue-500 transition"
+          >
             💬 {comments}
           </button>
 
-          <button onClick={handleRepost} disabled={loadingAction === "repost"} className="flex items-center gap-1 hover:text-green-500 transition">
+          <button
+            onClick={handleRepost}
+            disabled={loadingAction === "repost"}
+            className="flex items-center gap-1 hover:text-green-500 transition"
+          >
             🔁 {reposts}
           </button>
         </div>
@@ -433,7 +492,9 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
               min="1"
               step="0.1"
               value={tipAmount}
-              onChange={(e) => setTipAmount(e.target.value === "" ? "" : Number(e.target.value))}
+              onChange={(e) =>
+                setTipAmount(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className="w-16 p-1 bg-gray-800 text-white rounded text-sm"
               placeholder="1"
             />
@@ -446,10 +507,6 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             </button>
           </div>
 
-          <button
-            onClick={handleBoost}
-            disabled={loadingAction === "boost"}
-            className="px-4 py-1 bg-purple-600 text-white rounded 
           <button
             onClick={handleBoost}
             disabled={loadingAction === "boost"}
@@ -487,21 +544,32 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
             onClick={() => setShowComments(!showComments)}
             className="text-blue-400 hover:text-blue-300 text-sm"
           >
-            {showComments ? t("ocultar_comentarios") : t("ver_comentarios")} {comments}
+            {showComments
+              ? t("ocultar_comentarios")
+              : t("ver_comentarios")}{" "}
+            {comments}
           </button>
 
           {showComments && (
             <div className="mt-2 space-y-3 max-h-60 overflow-y-auto">
               {loadingComments ? (
-                <p className="text-gray-500 text-sm">{t("cargando_comentarios")}</p>
+                <p className="text-gray-500 text-sm">
+                  {t("cargando_comentarios")}
+                </p>
               ) : commentsList.length === 0 ? (
-                <p className="text-gray-500 text-sm">{t("no_hay_comentarios")}</p>
+                <p className="text-gray-500 text-sm">
+                  {t("no_hay_comentarios")}
+                </p>
               ) : (
                 commentsList.map((c) => (
                   <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
-                    <p className="font-bold">{c.profiles?.username || "Desconocido"}</p>
+                    <p className="font-bold">
+                      {globalUsername || c.profiles?.username}
+                    </p>
                     <p className="text-gray-300">{c.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">{new Date(c.timestamp).toLocaleString()}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(c.timestamp).toLocaleString()}
+                    </p>
                   </div>
                 ))
               )}
@@ -510,61 +578,64 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
         </div>
       )}
 
-      {/* Chat exclusico */}
-{currentUserId && (
-  <button
-    onClick={handleChatCreadores}
-    className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
-  >
-    {t("chat_exclusivo")}
-  </button>
-)}
-
-{/* Mostrar error */}
-{error && (
-  <p className="text-red-500 text-sm mt-3">
-    {error}
-  </p>
-)}
-
-{/* Modal Repost / Citar */}
-{showRepostModal && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-    <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
-      <h3 className="text-white text-xl font-bold mb-4 text-center">
-        {t("repost")}
-      </h3>
-
-      <div className="flex flex-col gap-4">
+      {/* Chat */}
+      {currentUserId && (
         <button
-          onClick={confirmRepost}
-          className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
+          onClick={handleChatCreadores}
+          className="w-full py-2 bg-indigo-600 text-white rounded-full mt-4 hover:bg-indigo-700 text-sm font-medium transition"
         >
-          {t("repost")}
+          {t("chat_exclusivo")}
         </button>
+      )}
 
-        <button
-          onClick={confirmQuote}
-          className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
-        >
-          {t("citar_post")}
-        </button>
+      {/* Error */}
+      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
 
-        <input
-          type="text"
-          value={quoteInput}
-          onChange={(e) => setQuoteInput(e.target.value)}
-          placeholder={t("escribe_para_citar")}
-          className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-        />
+      {/* Modal Repost */}
+      {showRepostModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+          <div className="bg-gray-900 rounded-2xl p-6 w-full max-w-sm mx-4">
+            <h3 className="text-white text-xl font-bold mb-4 text-center">
+              {t("repost")}
+            </h3>
 
-        <button
-          onClick={() => setShowRepostModal(false)}
-          className="py-3 text-gray-400 hover:text-gray-300 transition"
-        >
-          {t("cancelar")}
-        </button>
-      </div>
+            <div className="flex flex-col gap-4">
+              <button
+                onClick={confirmRepost}
+                className="py-3 bg-purple-600 text-white rounded-xl font-medium hover:bg-purple-700 transition"
+              >
+                {t("repost")}
+              </button>
+
+              <button
+                onClick={confirmQuote}
+                className="py-3 bg-gray-700 text-white rounded-xl font-medium hover:bg-gray-600 transition"
+              >
+                {t("citar_post")}
+              </button>
+
+              <input
+                type="text"
+                value={quoteInput}
+                onChange={(e) => setQuoteInput(e.target.value)}
+                placeholder={t("escribe_para_citar")}
+                className="w-full p-2 rounded bg-gray-800 text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+
+              <button
+                onClick={() => setShowRepostModal(false)}
+                className="py-3 text-gray-400 hover:text-gray-300 transition"
+              >
+                {t("cancelar")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-)}
+  );
+};
+
+export default PostCard;
+
+        
