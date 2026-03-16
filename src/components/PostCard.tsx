@@ -163,78 +163,135 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   // Handlers
   const handleLike = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("like");
+  const [liked, setLiked] = useState(false);
+
+// Inicializar si el usuario ya dio like
+useEffect(() => {
+  const checkIfLiked = async () => {
+    if (!currentUserId) return;
     try {
-      const { data: existing } = await supabase
+      const { data, error } = await supabase
         .from("likes")
         .select("id")
         .eq("post_id", post.id)
         .eq("user_id", currentUserId)
         .maybeSingle();
-
-      if (existing) {
-        await supabase.from("likes").delete().eq("id", existing.id);
-        await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
-        setLiked(false);
-        setLikes(likes - 1);
-      } else {
-        await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
-        await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
-        setLiked(true);
-        setLikes(likes + 1);
-      }
-    } catch (err: any) {
-      setError(t("error_al_dar_like") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
+      if (error) throw error;
+      setLiked(!!data);
+    } catch (err) {
+      console.error("Error verificando like:", err);
     }
+  };
+  checkIfLiked();
+}, [post.id, currentUserId]);
+
+const handleLike = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("like");
+  try {
+    const { data: existing } = await supabase
+      .from("likes")
+      .select("id")
+      .eq("post_id", post.id)
+      .eq("user_id", currentUserId)
+      .maybeSingle();
+
+    if (existing) {
+      await supabase.from("likes").delete().eq("id", existing.id);
+      await supabase.from("posts").update({ likes: likes - 1 }).eq("id", post.id);
+      setLiked(false);
+      setLikes(likes - 1);
+    } else {
+      await supabase.from("likes").insert({ post_id: post.id, user_id: currentUserId });
+      await supabase.from("posts").update({ likes: likes + 1 }).eq("id", post.id);
+      setLiked(true);
+      setLikes(likes + 1);
+    }
+  } catch (err: any) {
+    setError(t("error_al_dar_like") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
   };
 
   const handleComment = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    if (!commentInput.trim()) return setError(t("escribe_comentario"));
-    setLoadingAction("comment");
-    try {
-      const { error } = await supabase.from("comments").insert({
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  if (!commentInput.trim()) return setError(t("escribe_comentario"));
+  setLoadingAction("comment");
+  try {
+    // Insertar comentario en Supabase
+    const { data: newComment, error } = await supabase
+      .from("comments")
+      .insert({
         post_id: post.id,
         user_id: currentUserId,
         content: commentInput.trim(),
         timestamp: new Date().toISOString(),
-      });
-      if (error) throw error;
-      await supabase.from("posts").update({ comments: comments + 1 }).eq("id", post.id);
-      setCommentInput("");
-      setShowCommentInput(false);
-      setComments(comments + 1);
-    } catch (err: any) {
-      setError(t("error_al_comentar") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
-    }
-  };
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Actualizar contador de comentarios en posts
+    await supabase
+      .from("posts")
+      .update({ comments: comments + 1 })
+      .eq("id", post.id);
+
+    // Actualizar estado local
+    setCommentInput("");
+    setShowCommentInput(false);
+    setComments(comments + 1);
+
+    // Enriquecer el comentario con perfil
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("username, avatar_url")
+      .eq("id", currentUserId)
+      .single();
+
+    setCommentsList([
+      { ...newComment, profiles: profileData },
+      ...commentsList,
+    ]);
+  } catch (err: any) {
+    setError(t("error_al_comentar") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
+
 
   const handleRepost = () => setShowRepostModal(true);
+const handleRepost = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("repost");
+  try {
+    // Insertar repost en Supabase
+    const { error } = await supabase.from("reposts").insert({
+      post_id: post.id,
+      user_id: currentUserId,
+      timestamp: new Date().toISOString(),
+    });
+    if (error) throw error;
 
-  const confirmRepost = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("repost");
-    setShowRepostModal(false);
-    try {
-      const { error } = await supabase.from("reposts").insert({
-        post_id: post.id,
-        user_id: currentUserId,
-        timestamp: new Date().toISOString(),
-      });
-      if (error) throw error;
-      await supabase.from("posts").update({ reposts: reposts + 1 }).eq("id", post.id);
-      setReposts(reposts + 1);
-      alert(t("repostear"));
-    } catch (err: any) {
-      setError(t("error_al_repostear") + ": " + err.message);
-    } finally {
-      setLoadingAction(null);
-    }
-  };
+    // Actualizar contador de reposts en posts
+    await supabase
+      .from("posts")
+      .update({ reposts: reposts + 1 })
+      .eq("id", post.id);
+
+    // Actualizar estado local
+    setReposts(reposts + 1);
+    alert(t("repostear"));
+  } catch (err: any) {
+    setError(t("error_al_repostear") + ": " + err.message);
+  } finally {
+    setLoadingAction(null);
+  }
+};
+
 
   const confirmQuote = async () => {
     if (!currentUserId) return setError(t("debes_estar_logueado"));
@@ -259,55 +316,87 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   };
 
   const handleTip = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    if (tipAmount === "" || Number(tipAmount) < 1) return setError(t("min_wld"));
-    setLoadingAction("tip");
-    setError(null);
-    try {
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference: `tip-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [
-          {
-            symbol: Tokens.WLD,
-            token_amount: tokenToDecimals(Number(tipAmount), Tokens.WLD).toString(),
-          },
-        ],
-        description: t("tip"),
-      });
-      if (payRes?.finalPayload?.status === "success") alert(t("tip_enviado"));
-      else alert(t("pago_cancelado"));
-    } catch (err: any) {
-      setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
-    } finally {
-      setLoadingAction(null);
-    }
-  };
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("tip");
+  setError(null);
 
-  const handleBoost = async () => {
-    if (!currentUserId) return setError(t("debes_estar_logueado"));
-    setLoadingAction("boost");
-    setError(null);
-    try {
-      const payRes = await MiniKit.commandsAsync.pay({
-        reference: `boost-${post.id}-${Date.now()}`,
-        to: RECEIVER,
-        tokens: [
-          {
-            symbol: Tokens.WLD,
-            token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
-          },
-        ],
-        description: t("boost_5_wld"),
-      });
-      if (payRes?.finalPayload?.status === "success") alert(t("boost_enviado"));
-      else alert(t("pago_cancelado"));
-    } catch (err: any) {
-      setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
-    } finally {
-      setLoadingAction(null);
+  // Validar que el post no sea de usuario tier free
+  if (post.tier === "free") {
+    setError(t("no_tips_para_free"));
+    setLoadingAction(null);
+    return;
+  }
+
+  // Validar cantidad
+  if (tipAmount === "" || Number(tipAmount) < 1) {
+    setError(t("min_wld"));
+    setLoadingAction(null);
+    return;
+  }
+
+  try {
+    const amount = Number(tipAmount);
+
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `tip-${post.id}-${Date.now()}`,
+      to: RECEIVER,
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(amount, Tokens.WLD).toString(),
+        },
+      ],
+      description: t("tip"),
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      alert(t("tip_enviado"));
+      setTipAmount(1); // opcional: reset al valor por defecto
+    } else {
+      alert(t("pago_cancelado"));
     }
-  };
+  } catch (err: any) {
+    setError(t("error_en_tip") + ": " + (err.message || t("pago_cancelado")));
+  } finally {
+    setLoadingAction(null);
+  }
+};
+  const handleBoost = async () => {
+  if (!currentUserId) return setError(t("debes_estar_logueado"));
+  setLoadingAction("boost");
+  setError(null);
+
+  // Validar que el post no sea de usuario tier free
+  if (post.tier === "free") {
+    setError(t("no_boost_para_free"));
+    setLoadingAction(null);
+    return;
+  }
+
+  try {
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `boost-${post.id}-${Date.now()}`,
+      to: RECEIVER,
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
+        },
+      ],
+      description: t("boost_5_wld"),
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      alert(t("boost_enviado"));
+    } else {
+      alert(t("pago_cancelado"));
+    }
+  } catch (err: any) {
+    setError(t("error_en_boost") + ": " + (err.message || t("pago_cancelado")));
+  } finally {
+    setLoadingAction(null);
+  }
+};
 
   const handleChatCreadores = async () => {
     setLoadingAction("subscription");
