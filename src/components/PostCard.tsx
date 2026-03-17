@@ -290,18 +290,11 @@ const handleRepost = async () => {
       setLoadingAction(null);
     }
   };
-// -------------------- HANDLE TIP --------------------
+// --- HANDLE TIP ---
 const handleTip = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("tip");
   setError(null);
-
-  // Validar que el post no sea de usuario tier free
-  if (post.tier === "free") {
-    setError(t("no_tips_para_free"));
-    setLoadingAction(null);
-    return;
-  }
 
   // Validar cantidad mínima
   if (tipAmount === "" || Number(tipAmount) < 1) {
@@ -310,21 +303,32 @@ const handleTip = async () => {
     return;
   }
 
+  // Validar que el post no sea de usuario free
+  if (post.tier === "free") {
+    setError(t("no_tips_para_free"));
+    setLoadingAction(null);
+    return;
+  }
+
   try {
     const amount = Number(tipAmount);
 
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `tip-${Date.now()}`,
+      reference: `tip-${post.id}-${Date.now()}`.slice(0, 36), // <= 36 chars
       to: RECEIVER,
-      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(amount, Tokens.WLD).toString() }],
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(amount, Tokens.WLD).toString(),
+        },
+      ],
       description: t("tip"),
     });
 
     if (payRes?.finalPayload?.status === "success") {
-      alert(t("tip_enviado"));
-      setTipAmount(1);
+      setTipAmount(1); // opcional: reset al valor por defecto
     } else {
-      alert(t("pago_cancelado"));
+      setError(t("pago_cancelado"));
     }
   } catch (err: any) {
     setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
@@ -333,7 +337,7 @@ const handleTip = async () => {
   }
 };
 
-// -------------------- HANDLE BOOST --------------------
+// --- HANDLE BOOST ---
 const handleBoost = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("boost");
@@ -341,16 +345,19 @@ const handleBoost = async () => {
 
   try {
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `boost-${Date.now()}`,
+      reference: `boost-${post.id}-${Date.now()}`.slice(0, 36), // <= 36 chars
       to: RECEIVER,
-      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
+        },
+      ],
       description: t("boost_5_wld"),
     });
 
-    if (payRes?.finalPayload?.status === "success") {
-      alert(t("boost_enviado"));
-    } else {
-      alert(t("pago_cancelado"));
+    if (payRes?.finalPayload?.status !== "success") {
+      setError(t("pago_cancelado"));
     }
   } catch (err: any) {
     setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
@@ -359,7 +366,7 @@ const handleBoost = async () => {
   }
 };
 
-// -------------------- HANDLE CHAT CREADORES --------------------
+// --- HANDLE CHAT CREADORES ---
 const handleChatCreadores = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
   setLoadingAction("subscription");
@@ -367,23 +374,25 @@ const handleChatCreadores = async () => {
 
   try {
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `chat-${Date.now()}`,
+      reference: `chat-${Date.now()}`.slice(0, 36), // <= 36 chars
       to: RECEIVER,
-      tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() }],
+      tokens: [
+        { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
+      ],
       description: t("chat_exclusivo"),
     });
 
     if (payRes?.finalPayload?.status === "success") {
       window.location.href = "/chat/tokens";
     } else {
-      alert(t("pago_cancelado"));
+      setError(t("pago_cancelado"));
     }
   } catch (err: any) {
     setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
   } finally {
     setLoadingAction(null);
   }
-  };
+};
 
   const openUserProfile = () => {
     window.location.href = `/profile/${post.user_id}`;
@@ -579,7 +588,19 @@ const handleChatCreadores = async () => {
       )}
 
       {/* Error */}
-      {error && <p className="text-red-500 text-sm mt-3">{error}</p>}
+{error && (
+  <div className="fixed inset-0 flex items-center justify-center bg-black/50 z-50">
+    <div className="bg-gray-900 p-6 rounded-xl max-w-sm w-full text-center">
+      <p className="text-white mb-4">{error}</p>
+      <button
+        onClick={() => setError(null)}
+        className="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
+      >
+        OK
+      </button>
+    </div>
+  </div>
+)}
 
       {/* Modal Repost */}
       {showRepostModal && (
