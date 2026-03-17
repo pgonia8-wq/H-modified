@@ -321,24 +321,26 @@ if (uploadError) throw uploadError;
           </div>
 
           {/* Avatar */}
-<div className="flex flex-col items-center gap-3">
+<div className="flex flex-col items-center gap-3 relative">
   <div className="relative w-32 h-32 rounded-full overflow-hidden bg-gray-800 border-4 border-purple-600">
+    {/* Spinner mientras sube el avatar */}
     {uploadingAvatar && (
       <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-20">
         <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
       </div>
     )}
 
+    {/* Imagen del avatar */}
     <img
       src={previewAvatar || profile.avatar_url || "/default-avatar.png"}
       alt="Avatar"
       className="w-full h-full rounded-full object-cover border-4 border-purple-500 shadow-lg"
     />
 
-    {/* Botón de cargar archivo, siempre visible si es tu perfil */}
+    {/* Botón editar avatar */}
     {isOwnProfile && (
-      <label className="absolute bottom-0 right-0 z-30 bg-purple-600 p-2 rounded-full cursor-pointer hover:bg-purple-700 shadow-lg">
-        <span className="text-xl text-white">📷</span>
+      <label className="absolute bottom-0 right-0 bg-purple-600 text-white p-2 rounded-full cursor-pointer hover:bg-purple-700 shadow-md z-30 transition">
+        <span className="text-xl">📷</span>
         <input
           type="file"
           accept="image/*"
@@ -350,8 +352,8 @@ if (uploadError) throw uploadError;
     )}
   </div>
 
-  {/* Botones de previsualización y subir */}
-  {selectedFile && isOwnProfile && (
+  {/* Botones cancelar / guardar avatar (aparecen solo si hay preview) */}
+  {previewAvatar && isOwnProfile && (
     <div className="flex gap-3 mt-2">
       <button
         onClick={() => {
