@@ -189,7 +189,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
 
       if (!compressedBlob) throw new Error("Error comprimiendo");
 
-      const fileName = `${id}.jpg`;
+      const fileName = `${id}-${Date.now()}.jpg`;
       const { error: uploadError } = await supabase.storage
         .from("avatars")
         .upload(fileName, compressedBlob, { upsert: true });
@@ -200,7 +200,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       const avatarUrl = data.publicUrl;
 
       await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", id);
-
+      await refreshProfile();
       setProfile(prev => ({ ...prev, avatar_url: avatarUrl }));
 
       window.dispatchEvent(
