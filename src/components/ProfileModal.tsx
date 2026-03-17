@@ -163,12 +163,17 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     setUploadingAvatar(true);
 
     try {
-      const previewUrl = URL.createObjectURL(file);
-      setProfile(prev => ({ ...prev, avatar_url: previewUrl }));
-
+      const previewUrl = await new Promise<string>((resolve) => {
+  const reader = new FileReader();
+  reader.onloadend = () => resolve(reader.result as string);
+  reader.readAsDataURL(file);
+    });
       const img = document.createElement("img");
       img.src = previewUrl;
-      await new Promise(resolve => { img.onload = resolve; });
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+          });
 
       const canvas = document.createElement("canvas");
       const MAX = 512;
@@ -183,10 +188,12 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(img, 0, 0, width, height);
 
-      const compressedBlob = await new Promise<Blob | null>(resolve =>
-        canvas.toBlob(resolve, "image/jpeg", 0.8)
-      );
-
+      const compressedBlob = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+       else reject(new Error("Error comprimiendo"));
+        }, "image/jpeg", 0.8);
+        });
       if (!compressedBlob) throw new Error("Error comprimiendo");
 
       const fileName = `${id}-${Date.now()}.jpg`;
