@@ -360,24 +360,25 @@ if (uploadError) throw uploadError;
       </button>
 
       <button
-        onClick={handleUploadAvatar}
-        disabled={uploadingAvatar}
-        className={`px-4 py-2 rounded-lg font-medium ${
-        uploadingAvatar
-    ? "bg-gray-600 cursor-not-allowed"
-    : "bg-green-600 hover:bg-green-700 text-white"
-}`}
-      >
-        {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
-      </button>
+  onClick={handleUploadAvatar}
+  disabled={uploadingAvatar}
+  className={`px-4 py-2 rounded-lg font-medium ${
+    uploadingAvatar
+      ? "bg-gray-600 cursor-not-allowed"
+      : "bg-green-600 hover:bg-green-700 text-white"
+  }`}
+>
+  {uploadingAvatar ? t("subiendo") : t("guardar_avatar")}
+</button>
     </div>
   )}
 </div>
                 ) : (
+                  {!isOwnProfile ? (
                   <div className="w-full h-full flex items-center justify-center text-3xl text-white">
-                    {(globalUsername || profile.username)?.[1]?.toUpperCase() || "A"}
+                  {(globalUsername || profile.username)?.[1]?.toUpperCase() || "A"}
                   </div>
-                )}
+                   ) : null}
   
 
               
@@ -547,15 +548,15 @@ if (uploadError) throw uploadError;
         )}
 
       {toast && (
-  <p
-    className={`text-center py-2 rounded mt-4 ${
-      toast.type === "success"
-        ? "bg-green-900 text-green-300"
-        : "bg-red-900 text-red-300"
-    }`}
-  >
-    {toast.message}
-  </p>
+<p
+  className={`text-center py-2 rounded mt-4 ${
+    toast.type === "success"
+      ? "bg-green-900 text-green-300"
+      : "bg-red-900 text-red-300"
+  }`}
+>
+  {toast.message}
+</p>
 )}
       </div>
     </div>
