@@ -546,8 +546,7 @@ if (uploadError) throw uploadError;
         )}
 
         {toast && (
-          <p
-            className={`text-center py-2 rounded mt-4 ${
+          <p className={`text-center py-2 rounded mt-4 ${
               toast.type === "success"
                 ? "bg-green-900 text-green-300"
                 : "bg-red-900 text-red-300"
