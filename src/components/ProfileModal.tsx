@@ -240,28 +240,6 @@ if (uploadError) throw uploadError;
     }
   };
 
-
-      const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
-      const avatarUrl = data.publicUrl;
-
-      await supabase.from("profiles").update({ avatar_url: avatarUrl }).eq("id", id);
-      await refreshProfile();
-      setProfile(prev => ({ ...prev, avatar_url: avatarUrl }));
-
-      window.dispatchEvent(
-        new CustomEvent("avatarUpdated", {
-          detail: { userId: id, avatarUrl }
-        })
-      );
-
-      setToast({ message: t("avatar_actualizado"), type: "success" });
-    } catch (err: any) {
-      setToast({ message: err.message, type: "error" });
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
   const toggleProfileVisibility = () => {
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
   };
