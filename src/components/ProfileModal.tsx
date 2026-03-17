@@ -392,8 +392,8 @@ if (uploadError) throw uploadError;
                   value={globalUsername || profile.username}
                   disabled
                   className="w-full bg-gray-800 p-3 rounded text-white cursor-not-allowed"
-                />
-              </div>
+                
+              
 
               <div>
                 <label className="block text-sm text-gray-400 mb-1">
@@ -551,7 +551,7 @@ if (uploadError) throw uploadError;
               toast.type === "success"
                 ? "bg-green-900 text-green-300"
                 : "bg-red-900 text-red-300"
-            }`}
+            }
           >
             {toast.message}
           </p>
