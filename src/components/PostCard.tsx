@@ -51,7 +51,114 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
+const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
+  const { theme, username: globalUsername } = useContext(ThemeContext);
+  const { t } = useLanguage();
+  const postRef = useRef<HTMLDivElement | null>(null);
+  const viewRegistered = useRef(false);
 
+  // --- Aquí van los otros useState existentes ---
+  const [tipAmount, setTipAmount] = useState<number | "">(1);
+  const [loadingAction, setLoadingAction] = useState<"like" | "comment" | "repost" | "tip" | "boost" | "follow" | "subscription" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- 🚀 PEGAR BLOQUE AQUÍ ---
+  const [liked, setLiked] = useState(false);
+  const [likes, setLikes] = useState(0);
+  const [comments, setComments] = useState(0);
+  const [reposts, setReposts] = useState(0);
+  const [commentsList, setCommentsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!post.id || !currentUserId) return;
+
+    const fetchPostData = async () => {
+      try {
+        const { data: postData, error: postError } = await supabase
+          .from("posts")
+          .select("likes, comments, reposts")
+          .eq("id", post.id)
+          .single();
+        if (postError) throw postError;
+
+        setLikes(postData.likes || 0);
+        setComments(postData.comments || 0);
+        setReposts(postData.reposts || 0);
+
+        const { data: likeData } = await supabase
+          .from("likes")
+          .select("id")
+          .eq("post_id", post.id)
+          .eq("user_id", currentUserId)
+          .maybeSingle();
+
+        setLiked(!!likeData);
+      } catch (err) {
+        console.error("Error cargando datos del post:", err);
+      }
+    };
+
+    fetchPostData();
+  }, [post.id, currentUserId]);
+
+  useEffect(() => {
+    if (!post.id) return;
+
+    const channel = supabase
+      .channel(`post-${post.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "posts", filter: `id=eq.${post.id}` },
+        (payload) => {
+          if (payload.new.likes !== likes) setLikes(payload.new.likes);
+          if (payload.new.comments !== comments) setComments(payload.new.comments);
+          if (payload.new.reposts !== reposts) setReposts(payload.new.reposts);
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [post.id, likes, comments, reposts]);
+
+  useEffect(() => {
+    if (!post.id) return;
+
+    const fetchComments = async () => {
+      try {
+        const { data: commentsData } = await supabase
+          .from("comments")
+          .select("*")
+          .eq("post_id", post.id)
+          .order("timestamp", { ascending: false })
+          .limit(10);
+
+        const userIds = [...new Set(commentsData?.map((c: any) => c.user_id) || [])];
+
+        const { data: profilesData } = await supabase
+          .from("profiles")
+          .select("id, username, avatar_url")
+          .in("id", userIds);
+
+        const profilesMap = (profilesData || []).reduce((acc: any, p: any) => {
+          acc[p.id] = p;
+          return acc;
+        }, {});
+
+        const enriched = (commentsData || []).map((c: any) => ({
+          ...c,
+          profiles: profilesMap[c.user_id] || null,
+        }));
+
+        setCommentsList(enriched);
+      } catch (err) {
+        console.error("Error cargando comentarios:", err);
+      }
+    };
+
+    fetchComments();
+  }, [post.id]);
+
+  
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
    // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
