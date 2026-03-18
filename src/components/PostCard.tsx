@@ -52,7 +52,6 @@ const [originalPost, setOriginalPost] = useState<any | null>(null);
 const [hasChatAccess, setHasChatAccess] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(true);
 
-// --- 1. Check chat access ---
 useEffect(() => {
   const checkChatAccess = async () => {
     if (!currentUserId) {
