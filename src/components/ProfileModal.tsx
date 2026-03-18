@@ -214,65 +214,45 @@ if (uploadError) throw uploadError;
   };
 
   const handleSave = async () => {
-  if (!id) {
-    setToast({ message: "No hay ID", type: "error" });
+  // Usamos profile.username como principal (el que se muestra en el modal y es único)
+  const userIdentifier = profile.username;
+
+  // Si por algún motivo está vacío (raro), fallback a otros valores que tengas
+  // pero en tu caso profile.username debería estar siempre presente
+  if (!userIdentifier) {
+    setToast({ message: "No se encontró username en el perfil", type: "error" });
     return;
   }
+
+  // Log para que veas que está usando el valor correcto (quítalo después si quieres)
+  console.log("[GUARDAR DEBUG] Usando username:", userIdentifier);
 
   setSaving(true);
 
   try {
-    // Log 1: Qué se va a enviar (para debug)
-    console.log("[GUARDAR] Datos ENVIADOS:", {
-      id,
-      name: profile.name,
-      bio: profile.bio || "(vacío)",
-      birthdate: profile.birthdate || "(vacío)",
-      city: profile.city || "(vacío)",
-      country: profile.country || "(vacío)",
-      profile_visible: profile.profile_visible,
-    });
-
-    const { data: updated, error } = await supabase
+    const { error } = await supabase
       .from("profiles")
       .update({
-        name: profile.name,
+        name: profile.username,              // el "Nombre" editable
         bio: profile.bio,
         birthdate: profile.birthdate,
         city: profile.city,
         country: profile.country,
         profile_visible: profile.profile_visible,
       })
-      .eq("id", id)
-      .select("*")           // Esto es clave para confirmar si realmente guardó
-      .single();
+      .eq("username", userIdentifier);   // ← clave: filtramos por la columna "username" en Supabase
 
     if (error) {
-      console.error("[ERROR Supabase update]:", error.message, error.details, error.hint);
+      console.error("[ERROR Supabase update]:", error.message);
       throw error;
     }
 
-    if (!updated) {
-      console.warn("[WARNING] Update OK pero NO devolvió fila → no se actualizó nada");
-      setToast({ message: "No se actualizó (fila no encontrada o RLS bloquea)", type: "error" });
-      return;
-    }
-
-    // Log 2: Qué realmente guardó Supabase
-    console.log("[ÉXITO] Supabase devolvió:", updated);
-
-    // Actualiza el estado local con lo guardado de verdad
-    setProfile(updated);
-
-    // Si tienes refreshProfile, llámalo
     await refreshProfile();
-
     setToast({ message: t("perfil_guardado"), type: "success" });
     setEditMode(false);
-
   } catch (err: any) {
-    console.error("[Catch Guardar]:", err);
-    setToast({ message: "Error al guardar: " + (err.message || "desconocido"), type: "error" });
+    console.error("[Catch en handleSave]:", err);
+    setToast({ message: t("error_guardar") + ": " + (err.message || "desconocido"), type: "error" });
   } finally {
     setSaving(false);
   }
