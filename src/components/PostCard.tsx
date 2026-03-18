@@ -77,7 +77,8 @@ useEffect(() => {
     }
   };
   const [hasChatAccess, setHasChatAccess] = useState(false);
-  useEffect(() => {
+  // ✅ 1. Check chat access
+useEffect(() => {
   const checkChatAccess = async () => {
     if (!currentUserId) {
       setCheckingAccess(false);
@@ -101,12 +102,26 @@ useEffect(() => {
   checkChatAccess();
 }, [currentUserId]);
 
-  checkChatAccess();
-}, [currentUserId]);
-    
-    
-    fetchOriginalPost();
-}, [post?.reposted_post_id]);
+// ✅ 2. Fetch original post
+useEffect(() => {
+  const fetchOriginalPost = async () => {
+    if (!post || !post.reposted_post_id) return;
+
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .eq("id", post.reposted_post_id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching original post:", error);
+    } else {
+      setOriginalPost(data);
+    }
+  };
+
+  fetchOriginalPost();
+}, [post && post.reposted_post_id]); // no ?. aquíd]);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
