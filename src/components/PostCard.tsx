@@ -34,7 +34,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const { t } = useLanguage();
   const postRef = useRef<HTMLDivElement | null>(null);
   const viewRegistered = useRef(false);
-
+  
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(post.likes || 0);
   const [comments, setComments] = useState(post.comments || 0);
@@ -76,10 +76,38 @@ useEffect(() => {
       setOriginalPost(data);
     }
   };
+  const [hasChatAccess, setHasChatAccess] = useState(false);
+  useEffect(() => {
+  const checkChatAccess = async () => {
+    if (!currentUserId) {
+      setCheckingAccess(false);
+      return;
+    }
 
-  fetchOriginalPost();
+    const { data } = await supabase
+      .from("subscriptions")
+      .select("chat_type")
+      .eq("user_id", currentUserId)
+      .in("chat_type", ["classic", "gold"])
+      .maybeSingle();
+
+    if (data) {
+      setHasChatAccess(true);
+    }
+
+    setCheckingAccess(false);
+  };
+
+  checkChatAccess();
+}, [currentUserId]);
+
+  checkChatAccess();
+}, [currentUserId]);
+    
+    
+    fetchOriginalPost();
 }, [post.reposted_post_id]);
-  
+  const [checkingAccess, setCheckingAccess] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
@@ -408,28 +436,54 @@ const handleBoost = async () => {
 // --- HANDLE CHAT CREADORES ---
 const handleChatCreadores = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
-  setLoadingAction("subscription");
-  setError(null);
 
+  if (checkingAccess) return; // evita bug de doble check
+
+  // ✅ YA PAGÓ → entra directo
+  if (hasChatAccess) {
+    window.location.href = "/chat/tokens";
+    return;
+  }
+
+  // 💰 NO HA PAGADO → COBRAR
   try {
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `chat-${Date.now()}`.slice(0, 36), // <= 36 chars
+      reference: `chat-${Date.now()}`.slice(0, 36),
       to: RECEIVER,
       tokens: [
-        { symbol: Tokens.WLD, token_amount: tokenToDecimals(5, Tokens.WLD).toString() },
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
+        },
       ],
       description: t("chat_exclusivo"),
     });
 
     if (payRes?.finalPayload?.status === "success") {
+      const { error: dbError } = await supabase
+        .from("subscriptions")
+        .upsert({
+          user_id: currentUserId,
+          chat_type: "classic",
+        });
+
+      if (dbError) {
+        console.error("Error guardando suscripción:", dbError);
+        setError("Pago recibido, pero hubo un error. Contacta soporte.");
+        return;
+      }
+
       window.location.href = "/chat/tokens";
     } else {
       setError(t("pago_cancelado"));
     }
+
   } catch (err: any) {
-    setError(t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado")));
-  } finally {
-    setLoadingAction(null);
+    setError(
+      t("error_procesar_pago") +
+        ": " +
+        (err.message || t("pago_cancelado"))
+    );
   }
 };
 
