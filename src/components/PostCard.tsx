@@ -428,13 +428,14 @@ const handleBoost = async () => {
 
 // --- HANDLE CHAT CREADORES ---
 const handleChatCreadores = async () => {
+const handleChatCreadores = async () => {
   if (!currentUserId) return setError(t("debes_estar_logueado"));
 
-  if (checkingAccess) return; // evita bug de doble check
+  if (checkingAccess) return; // evita conflictos mientras se consulta
 
-  // ✅ YA PAGÓ → entra directo
+  // ✅ YA TIENE SUSCRIPCIÓN → entra directo
   if (hasChatAccess) {
-    window.location.href = "/chat/tokens";
+    window.location.href = "/chat/global"; // <-- redirige a GlobalChatRoom
     return;
   }
 
@@ -457,7 +458,7 @@ const handleChatCreadores = async () => {
         .from("subscriptions")
         .upsert({
           user_id: currentUserId,
-          chat_type: "classic",
+          product: "chat_classic", // ajusta según el producto que corresponda
         });
 
       if (dbError) {
@@ -465,17 +466,14 @@ const handleChatCreadores = async () => {
         setError("Pago recibido, pero hubo un error. Contacta soporte.");
         return;
       }
-       setHasChatAccess(true);
-      window.location.href = "/chat/tokens";
+
+      window.location.href = "/chat/global"; // <-- redirige a GlobalChatRoom tras pagar
     } else {
       setError(t("pago_cancelado"));
     }
-
   } catch (err: any) {
     setError(
-      t("error_procesar_pago") +
-        ": " +
-        (err.message || t("pago_cancelado"))
+      t("error_procesar_pago") + ": " + (err.message || t("pago_cancelado"))
     );
   }
 };
