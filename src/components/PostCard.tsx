@@ -723,8 +723,8 @@ const handleChatCreadores = async () => {
               )}
             </div>
           )}
-        </div> {/* Cierre del contenedor de comentarios */}
-      )}
+        </div> {/* Cierre del contenedor principal de comentarios */}
+      )} {/* ← Cierre del bloque que contiene el botón + comentarios */}
 
       {/* Botón de chat */}
       {currentUserId && (
@@ -814,3 +814,4 @@ const handleChatCreadores = async () => {
 };
 
 export default PostCard;
+          
