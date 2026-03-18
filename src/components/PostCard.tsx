@@ -106,7 +106,7 @@ useEffect(() => {
     
     
     fetchOriginalPost();
-}, [post.reposted_post_id]);
+}, [post?.reposted_post_id]);
   const [checkingAccess, setCheckingAccess] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
