@@ -215,7 +215,8 @@ if (uploadError) throw uploadError;
 
   const handleSave = async () => {
   // Usamos profile.username como principal (el que se muestra en el modal y es único)
-  
+  const userIdentifier = profile.username;
+
   // Si por algún motivo está vacío (raro), fallback a otros valores que tengas
   // pero en tu caso profile.username debería estar siempre presente
   if (!userIdentifier) {
@@ -239,7 +240,8 @@ if (uploadError) throw uploadError;
         country: profile.country,
         profile_visible: profile.profile_visible,
       })
-      
+      .eq("username", userIdentifier);   // ← clave: filtramos por la columna "username" en Supabase
+
     if (error) {
       console.error("[ERROR Supabase update]:", error.message);
       throw error;
