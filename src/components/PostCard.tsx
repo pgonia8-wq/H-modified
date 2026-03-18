@@ -708,7 +708,7 @@ const handleChatCreadores = async () => {
                   {t("no_hay_comentarios")}
                 </p>
               ) : (
-                {commentsList.map((c) => (
+                 commentsList.map((c) => (
                 <div key={c.id} className="bg-gray-800 p-3 rounded text-sm">
                   <p className="font-bold">
                     {globalUsername || c.profiles?.username}
@@ -718,7 +718,7 @@ const handleChatCreadores = async () => {
                     {new Date(c.timestamp).toLocaleString()}
                   </p>
                 </div>
-              ))}
+              ))
             </div> {/* cierre de max-h-60 overflow-y-auto */}
           )}
         </div> {/* cierre del div de comentarios */}
