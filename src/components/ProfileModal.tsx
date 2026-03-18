@@ -59,6 +59,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+  if (!currentUserId) return;
+
+  const fetchProfile = async () => {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", currentUserId)
+      .single();
+
+    if (error) {
+      console.error("[ProfileModal] Error cargando perfil:", error);
+      return;
+    }
+
+    if (data) {
+      setProfile(data); // 🔥 AQUÍ reemplazas el emptyProfile
+    }
+  };
+
+  fetchProfile();
+}, [currentUserId]);
   
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [bioLength, setBioLength] = useState(0);
