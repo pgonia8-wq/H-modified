@@ -810,7 +810,6 @@ const handleChatCreadores = async () => {
     onClose={() => setShowGlobalChat(false)}
     currentUser={chatCurrentUser}
     supabase={supabase}
-  }}
 />
     </div>
         </div>
