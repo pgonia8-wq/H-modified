@@ -53,7 +53,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 const [originalPost, setOriginalPost] = useState<any | null>(null);
 const [hasChatAccess, setHasChatAccess] = useState(false);
 const [checkingAccess, setCheckingAccess] = useState(true);
-
+const userRole = hasChatAccess ? "gold" : "free";
 // Check chat access
 // --- USEEFFECTS ---
 useEffect(() => {
