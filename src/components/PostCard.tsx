@@ -107,14 +107,7 @@ useEffect(() => {
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
   const [quoteInput, setQuoteInput] = useState("");
-                // ── Objeto de usuario compatible con la versión bonita del chat ──
-const chatCurrentUser = {
-  id: currentUserId || "anon-" + Date.now().toString(36).slice(-6),
-  username: globalUsername || "UsuarioWorld",
-  avatarUrl: postProfile?.avatar_url || undefined,   // si tienes avatar global, úsalo aquí
-  role: hasChatAccess ? "gold" : "free",
-  isOnline: true,
-};
+
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
    // Estado para el perfil del autor del post
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
@@ -797,7 +790,7 @@ const handleChatCreadores = async () => {
         </div>
       )}
 
-{showGlobalChat && (
+      {showGlobalChat && (
         <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
           <button
             onClick={() => setShowGlobalChat(false)}
@@ -816,3 +809,4 @@ const handleChatCreadores = async () => {
 };
 
 export default PostCard;
+            
