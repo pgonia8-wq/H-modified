@@ -87,6 +87,7 @@ function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
 
+
 /** Mapea una fila de Supabase (snake_case) al tipo ChatMessage (camelCase) */
 function rowToMessage(row: Record<string, unknown>): ChatMessage {
   return {
@@ -111,6 +112,66 @@ function rowToMessage(row: Record<string, unknown>): ChatMessage {
 function Avatar({ src, name, size = "md", ring = false, gold = false }: {
   src?: string; name: string; size?: "xs" | "sm" | "md"; ring?: boolean; gold?: boolean;
 }) {
+  // ── STATES ──
+const [showGoldFeatures, setShowGoldFeatures] = useState(false);
+const [loadingAction, setLoadingAction] = useState<"subscription" | null>(null);
+const [error, setError] = useState<string | null>(null);
+
+// ── HANDLERS ──
+const handleGoldSubscription = async () => {
+  if (!currentUserId) {
+    setError("Debes estar logueado para suscribirte a Platinum.");
+    return;
+  }
+
+  if (currentUser?.has_chat_gold) {
+    setShowGoldFeatures(true);
+    return;
+  }
+
+  setLoadingAction("subscription");
+  setError(null);
+
+  try {
+    const payRes = await MiniKit.commandsAsync.pay({
+      reference: `chat_gold-${Date.now()}`.slice(0, 36),
+      to: RECEIVER,
+      tokens: [
+        {
+          symbol: Tokens.WLD,
+          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
+        },
+      ],
+      description: "Suscripción Chat Platinum",
+    });
+
+    if (payRes?.finalPayload?.status === "success") {
+      const { error: dbError } = await supabase
+        .from("subscriptions")
+        .upsert({
+          user_id: currentUserId,
+          product: "platinum",
+        });
+
+      if (dbError) {
+        console.error("Error guardando suscripción Platinum:", dbError);
+        setError("Pago recibido, pero hubo un error al guardar. Contacta soporte.");
+        setLoadingAction(null);
+        return;
+      }
+
+      setCurrentUser((prev) => prev ? { ...prev, has_platinum: true } : prev);
+      setShowGoldFeatures(true);
+    } else {
+      setError("Pago cancelado o no completado.");
+    }
+  } catch (err: any) {
+    console.error("Error en suscripción Platinum:", err);
+    setError("Error procesando pago: " + (err.message || "Pago cancelado"));
+  } finally {
+    setLoadingAction(null);
+  }
+};
   const [imgError, setImgError] = useState(false);
   const sizeClass = size === "xs" ? "w-5 h-5 text-[8px]" : size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
   const ringClass = ring
