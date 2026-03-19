@@ -147,7 +147,7 @@ const handleGoldSubscription = async () => {
 
     if (payRes?.finalPayload?.status === "success") {
       const { error: dbError } = await supabase
-        .from("subscriptions")
+        .from("subscriptionschat")
         .upsert({
           user_id: currentUserId,
           product: "platinum",
