@@ -191,47 +191,36 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70 backdrop-blur-md p-4">
       <div
         ref={modalRef}
-        className="w-full max-w-md flex flex-col bg-gray-900 rounded-3xl shadow-2xl overflow-hidden 
+        className="w-full max-w-[380px] flex flex-col bg-gray-900 rounded-3xl shadow-2xl overflow-hidden 
                    animate-scale-up transition-all duration-300"
       >
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-700 via-indigo-700 to-purple-700 p-5 flex justify-between items-center">
+        {/* Header - Exactamente como en tu imagen */}
+        <div className="bg-gradient-to-r from-purple-600 to-violet-600 p-4 flex items-center justify-between rounded-t-3xl">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/10 rounded-2xl flex items-center justify-center text-2xl">
-              {showGoldChat ? "✨" : "🌍"}
+            <div className="w-9 h-9 bg-white/20 rounded-2xl flex items-center justify-center text-2xl flex-shrink-0">
+              🌍
             </div>
             <div>
-              <h2 className="text-xl font-bold text-white">
-                {showGoldChat ? "Gold Chat" : "Global Chat"}
-              </h2>
-              <p className="text-xs text-white/70 flex items-center gap-1">
+              <h2 className="text-white text-[22px] font-bold">Global Chat</h2>
+              <p className="text-white/80 text-sm flex items-center gap-1.5">
                 <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse" />
                 {usersConnected} conectados
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {goldSubscribed && (
-              <button
-                onClick={toggleChatMode}
-                className="px-4 py-1.5 text-xs font-medium rounded-full bg-white/10 hover:bg-white/20 transition text-white"
-              >
-                {showGoldChat ? "Global" : "Gold"}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={onClose}
-              className="w-9 h-9 flex items-center justify-center text-3xl text-white/80 hover:text-white transition"
-            >
-              ×
-            </button>
-          </div>
+          {/* Botón X que aparece en tu imagen - ahora funcional */}
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center text-white text-3xl hover:bg-white/20 rounded-full transition"
+          >
+            ×
+          </button>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-950 max-h-[65vh] scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-gray-950 max-h-[460px] scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
           {loading && (
             <p className="text-center text-gray-400 py-10">Cargando mensajes...</p>
           )}
@@ -244,8 +233,8 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
 
           {!loading && !loadError && (showGoldChat ? goldMessages : messages).length === 0 && (
             <div className="text-center py-16 text-gray-400">
-              <p className="text-4xl mb-3">💬</p>
-              <p className="font-medium">No hay mensajes aún</p>
+              <div className="text-6xl mb-6">💬</div>
+              <p className="font-medium text-lg">No hay mensajes aún</p>
               <p className="text-sm mt-1">Sé el primero en escribir algo interesante</p>
             </div>
           )}
