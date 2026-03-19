@@ -7,13 +7,21 @@ interface GlobalChatRoomProps {
   onClose: () => void;
 }
 
+interface ChatMessage {
+  id: string;
+  sender_id: string;
+  sender_name?: string; // nombre completo opcional
+  sender_avatar?: string; // url del avatar opcional
+  content: string;
+}
+
 const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
   currentUserId,
   roomId = "premium_global_chat",
   onClose,
 }) => {
-  const [messages, setMessages] = useState<any[]>([]);
-  const [goldMessages, setGoldMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [goldMessages, setGoldMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [typing, setTyping] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -22,6 +30,9 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
   const [showGoldChat, setShowGoldChat] = useState(false);
   const [usersConnected, setUsersConnected] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const defaultAvatar =
+    "https://i.pravatar.cc/40?u="; // placeholder para usuarios sin avatar
 
   // --- Load Classic Messages ---
   useEffect(() => {
@@ -80,6 +91,7 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
         }
       })
       .subscribe();
+
     return () => supabase.removeChannel(channel);
   }, [currentUserId, roomId]);
 
@@ -122,20 +134,45 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
     setShowGoldChat(true);
   };
 
+  // Simula usuarios conectados (puedes reemplazar con realtime)
+  useEffect(() => {
+    const interval = setInterval(() => setUsersConnected(Math.floor(Math.random() * 10) + 1), 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const renderMessage = (m: ChatMessage) => {
+    const isCurrentUser = m.sender_id === currentUserId;
+    const alignment = isCurrentUser ? "justify-end" : "justify-start";
+    const bgColor = isCurrentUser ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-200";
+    const avatarUrl = m.sender_avatar || `${defaultAvatar}${m.sender_id}`;
+    const username = m.sender_name || m.sender_id;
+
+    return (
+      <div key={m.id || Math.random()} className={`flex items-start gap-2 ${alignment}`}>
+        {!isCurrentUser && <img src={avatarUrl} alt={username} className="w-8 h-8 rounded-full object-cover" />}
+        <div className={`max-w-[70%] px-4 py-2 rounded-2xl ${bgColor}`}>
+          <span className="text-xs opacity-70 block mb-1">{username}</span>
+          {m.content}
+        </div>
+        {isCurrentUser && <img src={avatarUrl} alt={username} className="w-8 h-8 rounded-full object-cover" />}
+      </div>
+    );
+  };
+
   return (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="w-full max-w-md flex flex-col bg-gray-900 rounded-2xl shadow-2xl transform transition-transform duration-200 scale-95 animate-scale-up">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
+      <div className="w-full max-w-md flex flex-col bg-gray-900 rounded-2xl shadow-2xl transform transition-transform duration-300 scale-95 animate-scale-up">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-700 to-indigo-700 p-4 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-purple-700 to-indigo-700 p-4 flex justify-between items-center rounded-t-2xl">
           <div>
             <h2 className="text-lg font-bold text-white">{showGoldChat ? "Gold Chat" : "Global Chat"}</h2>
             <p className="text-sm text-gray-200 opacity-80">{usersConnected} personas conectadas</p>
           </div>
-          <button onClick={onClose} className="text-white font-bold text-2xl">×</button>
+          <button onClick={onClose} className="text-white font-bold text-2xl hover:text-gray-200 transition">×</button>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-800">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-800 max-h-[60vh]">
           {loading && <p className="text-center text-gray-400">Cargando mensajes...</p>}
           {loadError && <div className="p-2 bg-red-800 text-red-200 rounded">{loadError}</div>}
 
@@ -146,14 +183,7 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
             </div>
           )}
 
-          {(showGoldChat ? goldMessages : messages).map((m) => (
-            <div key={m.id || Math.random()} className={`flex ${m.sender_id === currentUserId ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[70%] px-4 py-2 rounded-xl ${m.sender_id === currentUserId ? "bg-purple-600 text-white" : "bg-gray-700 text-gray-200"}`}>
-                <span className="text-xs opacity-70 block mb-1">{m.sender_id?.slice(0, 10)}...</span>
-                {m.content}
-              </div>
-            </div>
-          ))}
+          {(showGoldChat ? goldMessages : messages).map(renderMessage)}
 
           {typing && <div className="text-xs text-gray-400 italic">Alguien está escribiendo...</div>}
           <div ref={bottomRef} />
@@ -163,7 +193,10 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
         {!goldSubscribed && showGoldChat && (
           <div className="flex flex-col items-center justify-center p-6 bg-gray-700 text-white animate-fade-in">
             <p className="mb-4 text-center">Suscríbete para acceder al Gold Chat</p>
-            <button onClick={handleGoldSubscribe} className="px-6 py-3 bg-yellow-500 text-black rounded-xl hover:bg-yellow-600 transition">
+            <button
+              onClick={handleGoldSubscribe}
+              className="px-6 py-3 bg-yellow-500 text-black rounded-xl hover:bg-yellow-600 transition"
+            >
               Suscribirse a Gold
             </button>
           </div>
@@ -171,10 +204,10 @@ const GlobalChatRoom: React.FC<GlobalChatRoomProps> = ({
 
         {/* Input */}
         {(!showGoldChat || goldSubscribed) && (
-          <div className="flex gap-2 p-4 border-t border-gray-700 bg-gray-900 sticky bottom-0">
+          <div className="flex gap-2 p-4 border-t border-gray-700 bg-gray-900 sticky bottom-0 shadow-inner-glow">
             <input
               type="text"
-              className="flex-1 bg-gray-800 px-4 py-3 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500 transition"
+              className="flex-1 bg-gray-800 px-4 py-3 rounded-xl text-white outline-none focus:ring-2 focus:ring-purple-500 transition placeholder:text-gray-400"
               placeholder="Escribe un mensaje..."
               value={newMessage}
               onChange={(e) => {
