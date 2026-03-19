@@ -803,8 +803,9 @@ const handleChatCreadores = async () => {
     onClose={() => setShowGlobalChat(false)}
     currentUser={chatCurrentUser}
     supabase={supabase}
-    // defaultRoom={hasChatAccess ? "gold" : "classic"}  // opcional: descomenta cuando quieras
-  />
-)}
+     )}
+    </div>               
+  );
+};
+
 export default PostCard;
-            
