@@ -1,5 +1,5 @@
 /**
- * GlobalChatRoom.tsx â€“ Componente premium self-contained
+ * GlobalChatRoom.tsx  â€“ Componente premium self-contained
  *
  * Dependencias Ãºnicas:
  *   npm install framer-motion lucide-react @supabase/supabase-js
@@ -124,7 +124,8 @@ const handleGoldSubscription = async () => {
     return;
   }
 
-  if (currentUser?.has_chat_gold) {
+  // Si ya tiene Platinum
+  if (currentUser?.has_chat_gold) {  // conservamos has_chat_gold como estado local
     setShowGoldFeatures(true);
     return;
   }
@@ -133,9 +134,10 @@ const handleGoldSubscription = async () => {
   setError(null);
 
   try {
+    // Lanzar pago de 5 WLD para Platinum
     const payRes = await MiniKit.commandsAsync.pay({
-      reference: `chat_gold-${Date.now()}`.slice(0, 36),
-      to: RECEIVER,
+      reference: `platinum-${Date.now()}`.slice(0, 36),
+      to: RECEIVER, // el mismo que ya tienes en tu MiniKit
       tokens: [
         {
           symbol: Tokens.WLD,
@@ -146,8 +148,9 @@ const handleGoldSubscription = async () => {
     });
 
     if (payRes?.finalPayload?.status === "success") {
+      // Guardar en la tabla subscriptionschat
       const { error: dbError } = await supabase
-        .from("subscriptions")
+        .from("subscriptionschat")
         .upsert({
           user_id: currentUserId,
           product: "platinum",
@@ -160,7 +163,10 @@ const handleGoldSubscription = async () => {
         return;
       }
 
-      setCurrentUser((prev) => prev ? { ...prev, has_platinum: true } : prev);
+      // Actualizar estado local del usuario
+      setCurrentUser((prev) => prev ? { ...prev, has_chat_gold: true } : prev);
+
+      // Activar funciones Platinum
       setShowGoldFeatures(true);
     } else {
       setError("Pago cancelado o no completado.");
@@ -987,11 +993,13 @@ export default function GlobalChatRoom({
               )}
 
               {/* BotÃ³n upgrade Gold */}
-              {!isSubscribed && (
-                <button onClick={() => setShowGoldModal(true)} data-testid="button-upgrade-gold"
-                  className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30">
-                  <Crown className="h-3 w-3" /> Gold
-                </button>
+              <Button
+               onClick={handleGoldSubscription}
+               disabled={loadingAction === "subscription"}
+               variant="gold"
+              >
+              {currentUser?.has_chat_gold ? "Acceder a funciones Platinum" : "Suscribirse a Platinum"}
+               </Button>
               )}
 
               {/* Cerrar */}
