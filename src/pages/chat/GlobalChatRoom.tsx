@@ -1003,19 +1003,19 @@ export default function GlobalChatRoom({
                   ))}
                 </div>
               )}
-                        {/* Botón Platinum */}
-{/* BOTÓN GOLD / PLATINUM - SIEMPRE VISIBLE */}
-<button
-  onClick={handleGoldButtonClick}   // ← nuevo handler que crearemos
-  className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-3 py-1 text-[10px] font-bold text-white shadow shadow-yellow-500/30"
-  disabled={loadingAction === "subscription"}
->
-  <Crown className="h-3 w-3" />
-  {isSubscribed || currentUser?.has_chat_gold 
-    ? "Acceder a Gold / Platinum ✨" 
-    : "Suscribirse a Platinum"}
-</button>
-
+                        {/* BOTÓN GOLD / PLATINUM - SIEMPRE VISIBLE */}
+<div className="flex items-center">
+  <button
+    onClick={handleGoldButtonClick}
+    className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-3 py-1 text-[10px] font-bold text-white shadow shadow-yellow-500/30"
+    disabled={loadingAction === "subscription"}
+  >
+    <Crown className="h-3 w-3" />
+    {isSubscribed || currentUser?.has_chat_gold 
+      ? "Acceder a Gold / Platinum ✨" 
+      : "Suscribirse a Platinum"}
+  </button>
+</div>
 
 {/* Cerrar */}
 <button
