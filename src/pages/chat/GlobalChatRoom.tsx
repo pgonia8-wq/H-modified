@@ -1003,27 +1003,21 @@ export default function GlobalChatRoom({
                   ))}
                 </div>
               )}
-                        {/* Botón Gold / Platinum - siempre visible */}
-{true && (
-  <button 
-    onClick={handleGoldButtonClick}
-    data-testid="button-upgrade-gold"
-    className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30"
-    disabled={loadingAction === "subscription"}
-  >
-    <Crown className="h-3 w-3" />
-    {isSubscribed || currentUser?.has_chat_gold 
-      ? "Acceder a Gold / Platinum ✨" 
-      : "Suscribirse a Platinum"}
-  </button>
-)}
+{/* BotÃ³n upgrade Gold */}
+              {!isSubscribed && (
+                <button onClick={() => setShowGoldModal(true)} data-testid="button-upgrade-gold"
+                  className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30">
+                  <Crown className="h-3 w-3" /> Gold
+                </button>
+              )}
 
-{/* Cerrar */}
-<button onClick={onClose} data-testid="button-close-chat"
-  className="flex-shrink-0 text-white/40 cursor-pointer p-1">
-  <X className="h-5 w-5" />
-</button>
-     </div>         
+              {/* Cerrar */}
+              <button onClick={onClose} data-testid="button-close-chat"
+                className="flex-shrink-0 text-white/40 cursor-pointer p-1">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          
             {/* â•â• DROPDOWN LISTA DE SALAS â•â• */}
             <AnimatePresence>
               {showRooms && (
