@@ -116,7 +116,7 @@ function Avatar({ src, name, size = "md", ring = false, gold = false }: {
 const [showGoldFeatures, setShowGoldFeatures] = useState(false);
 const [loadingAction, setLoadingAction] = useState<"subscription" | null>(null);
 const [error, setError] = useState<string | null>(null);
-
+const [isSubscribed, setIsSubscribed] = useState(false);
 // ── HANDLERS ──
 const handleGoldSubscription = async () => {
   if (!currentUserId) {
@@ -172,6 +172,24 @@ const handleGoldSubscription = async () => {
     setLoadingAction(null);
   }
 };
+  
+                 // ← NUEVO HANDLER (ponlo después de handleGoldSubscription)
+const handleGoldButtonClick = () => {
+  if (isSubscribed || currentUser?.has_chat_gold) {
+    // YA SUSCRIPTO → ABRIR FUNCIONES PREMIUM
+    setIsSubscribed(true);
+    setRoomType("gold");
+    setShowGoldFeatures(true);           // ← activa lo que quieras
+    switchRoom("gold-vip");              // ejemplo: abre sala VIP automáticamente
+    setShowGoldModal(false);
+  } else {
+    // NO SUSCRIPTO → MOSTRAR MODAL
+    setShowGoldModal(true);
+  }
+};
+
+
+        
   const [imgError, setImgError] = useState(false);
   const sizeClass = size === "xs" ? "w-5 h-5 text-[8px]" : size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
   const ringClass = ring
@@ -986,15 +1004,17 @@ export default function GlobalChatRoom({
                 </div>
               )}
                         {/* Botón Platinum */}
-{!isSubscribed && (
-  <button
-    onClick={handleGoldSubscription}
-    disabled={loadingAction === "subscription"}
-    className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30"
-  >
-    <Crown className="h-3 w-3" /> 
-    {currentUser?.has_chat_gold ? "Acceder a funciones Platinum" : "Suscribirse a Platinum"}
-  </button>
+{/* BOTÓN GOLD / PLATINUM - SIEMPRE VISIBLE */}
+<button
+  onClick={handleGoldButtonClick}   // ← nuevo handler que crearemos
+  className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-3 py-1 text-[10px] font-bold text-white shadow shadow-yellow-500/30"
+  disabled={loadingAction === "subscription"}
+>
+  <Crown className="h-3 w-3" />
+  {isSubscribed || currentUser?.has_chat_gold 
+    ? "Acceder a Gold / Platinum ✨" 
+    : "Suscribirse a Platinum"}
+</button>
 )}
 
 {/* Cerrar */}
