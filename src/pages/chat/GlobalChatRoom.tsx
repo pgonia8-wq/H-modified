@@ -1,8 +1,8 @@
 /**
- * GlobalChatRoom.tsx â€“ Componente premium self-contained
+ * GlobalChatRoom.tsx – Componente premium self-contained
  *
- * Dependencias Ãºnicas:
- *   npm install framer-motion lucide-react @supabase/supabase-js
+ * Dependencias únicas:
+ *   npm install framer-motion lucide-react @supabase/supabase-js @worldcoin/minikit-js
  *
  * Tailwind debe estar configurado en el proyecto.
  *
@@ -23,11 +23,17 @@ import {
   Users, Lock, Globe, Hash, ChevronDown, FileText, Sparkles,
   Star, Twitter,
 } from "lucide-react";
-import { supabase } from "../../supabaseClient";
+import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
+import { supabase } from "../supabaseClient";
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// CONSTANTES
+// ─────────────────────────────────────────────────────────────────────────────
+const RECEIVER = "0xdf4a991bc05945bd0212e773adcff6ea619f4c4b";
+
+// ─────────────────────────────────────────────────────────────────────────────
 // TIPOS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 export type UserRole = "admin" | "gold" | "free";
 export type RoomType = "classic" | "gold";
 
@@ -62,19 +68,19 @@ export interface GlobalChatRoomProps {
   currentUserId: string;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// SALAS ESTÃTICAS (estructura de navegaciÃ³n, sin mensajes falsos)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// SALAS ESTÁTICAS (estructura de navegación, sin mensajes falsos)
+// ─────────────────────────────────────────────────────────────────────────────
 const STATIC_ROOMS: ChatRoom[] = [
   { id: "classic-general",  name: "General",     type: "classic", isPrivate: false, description: "Chat general para todos" },
-  { id: "classic-tech",     name: "TecnologÃ­a",  type: "classic", isPrivate: false, description: "Habla de tech y programaciÃ³n" },
+  { id: "classic-tech",     name: "Tecnología",  type: "classic", isPrivate: false, description: "Habla de tech y programación" },
   { id: "gold-vip",         name: "VIP Lounge",  type: "gold",    isPrivate: false, description: "Sala exclusiva Gold" },
   { id: "gold-business",    name: "Business",    type: "gold",    isPrivate: true,  description: "Negocios y networking" },
 ];
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // UTILIDADES INTERNAS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function cx(...classes: (string | false | undefined | null)[]): string {
   return classes.filter(Boolean).join(" ");
 }
@@ -86,7 +92,6 @@ function timeStr(iso: string): string {
 function initials(name: string): string {
   return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
 }
-
 
 /** Mapea una fila de Supabase (snake_case) al tipo ChatMessage (camelCase) */
 function rowToMessage(row: Record<string, unknown>): ChatMessage {
@@ -104,92 +109,14 @@ function rowToMessage(row: Record<string, unknown>): ChatMessage {
   };
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTES UI INTERNOS (sin dependencia de Shadcn)
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 
 /** Avatar circular con fallback de iniciales */
 function Avatar({ src, name, size = "md", ring = false, gold = false }: {
   src?: string; name: string; size?: "xs" | "sm" | "md"; ring?: boolean; gold?: boolean;
 }) {
-  // ── STATES ──
-const [showGoldFeatures, setShowGoldFeatures] = useState(false);
-const [loadingAction, setLoadingAction] = useState<"subscription" | null>(null);
-const [error, setError] = useState<string | null>(null);
-const [isSubscribed, setIsSubscribed] = useState(false);
-// ── HANDLERS ──
-const handleGoldSubscription = async () => {
-  if (!currentUserId) {
-    setError("Debes estar logueado para suscribirte a Platinum.");
-    return;
-  }
-
-  if (currentUser?.has_chat_gold) {
-    setShowGoldFeatures(true);
-    return;
-  }
-
-  setLoadingAction("subscription");
-  setError(null);
-
-  try {
-    const payRes = await MiniKit.commandsAsync.pay({
-      reference: `chat_gold-${Date.now()}`.slice(0, 36),
-      to: RECEIVER,
-      tokens: [
-        {
-          symbol: Tokens.WLD,
-          token_amount: tokenToDecimals(5, Tokens.WLD).toString(),
-        },
-      ],
-      description: "Suscripción Chat Platinum",
-    });
-
-    if (payRes?.finalPayload?.status === "success") {
-      const { error: dbError } = await supabase
-        .from("subscriptionschat")
-        .upsert({
-          user_id: currentUserId,
-          product: "platinum",
-        });
-
-      if (dbError) {
-        console.error("Error guardando suscripción Platinum:", dbError);
-        setError("Pago recibido, pero hubo un error al guardar. Contacta soporte.");
-        setLoadingAction(null);
-        return;
-      }
-
-      setCurrentUser((prev) => prev ? { ...prev, has_platinum: true } : prev);
-      setShowGoldFeatures(true);
-    } else {
-      setError("Pago cancelado o no completado.");
-    }
-  } catch (err: any) {
-    console.error("Error en suscripción Platinum:", err);
-    setError("Error procesando pago: " + (err.message || "Pago cancelado"));
-  } finally {
-    setLoadingAction(null);
-  }
-};
-  
-                 // ← NUEVO HANDLER (ponlo después de handleGoldSubscription)
-const handleGoldButtonClick = () => {
-  if (isSubscribed || currentUser?.has_chat_gold) {
-    // YA SUSCRIPTO → ABRIR FUNCIONES PREMIUM
-    setIsSubscribed(true);
-    setRoomType("gold");
-    setShowGoldFeatures(true);           // ← activa lo que quieras
-    switchRoom("gold-vip");              // ejemplo: abre sala VIP automáticamente
-    setShowGoldModal(false);
-  } else {
-    // NO SUSCRIPTO → MOSTRAR MODAL
-    setShowGoldModal(true);
-  }
-};
-
-
-        
   const [imgError, setImgError] = useState(false);
   const sizeClass = size === "xs" ? "w-5 h-5 text-[8px]" : size === "sm" ? "w-8 h-8 text-xs" : "w-9 h-9 text-sm";
   const ringClass = ring
@@ -210,7 +137,7 @@ const handleGoldButtonClick = () => {
   );
 }
 
-/** BotÃ³n base reutilizable */
+/** Botón base reutilizable */
 function Btn({ children, onClick, disabled, variant = "primary", className, testId }: {
   children: React.ReactNode; onClick?: () => void; disabled?: boolean;
   variant?: "primary" | "ghost" | "outline" | "gold" | "danger"; className?: string; testId?: string;
@@ -238,14 +165,14 @@ function RoleBadge({ role }: { role: UserRole }) {
   return null;
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // TYPING INDICATOR
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function TypingIndicator({ users }: { users: TypingUser[] }) {
   if (!users.length) return null;
   const label = users.length === 1
-    ? `${users[0].username} estÃ¡ escribiendo`
-    : `${users.map((u) => u.username).join(", ")} estÃ¡n escribiendo`;
+    ? `${users[0].username} está escribiendo`
+    : `${users.map((u) => u.username).join(", ")} están escribiendo`;
 
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 6 }}
@@ -261,9 +188,9 @@ function TypingIndicator({ users }: { users: TypingUser[] }) {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // BURBUJA DE MENSAJE
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function MessageBubble({ message, isOwn, isGold, onShare }: {
   message: ChatMessage; isOwn: boolean; isGold: boolean; onShare: (m: ChatMessage) => void;
 }) {
@@ -278,14 +205,11 @@ function MessageBubble({ message, isOwn, isGold, onShare }: {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      {/* Avatar */}
       <div className="flex-shrink-0 mt-1">
         <Avatar src={message.avatarUrl} name={message.username} size="sm" ring gold={isGold} />
       </div>
 
-      {/* Contenido */}
       <div className={cx("flex flex-col gap-1 max-w-[75%]", isOwn ? "items-end" : "items-start")}>
-        {/* Meta */}
         <div className={cx("flex items-center gap-1.5 flex-wrap", isOwn ? "flex-row-reverse" : "flex-row")}>
           <span className={cx("text-xs font-semibold", isGold ? "text-yellow-300" : "text-indigo-300")}>
             {message.username}
@@ -293,7 +217,6 @@ function MessageBubble({ message, isOwn, isGold, onShare }: {
           <span className="text-[10px] text-white/30">{timeStr(message.createdAt)}</span>
         </div>
 
-        {/* Burbuja */}
         <div className={cx(
           "rounded-2xl px-3.5 py-2.5 text-sm leading-relaxed shadow-lg",
           isOwn
@@ -304,7 +227,6 @@ function MessageBubble({ message, isOwn, isGold, onShare }: {
         )}>
           {message.content && <p className="break-words whitespace-pre-wrap">{message.content}</p>}
 
-          {/* Archivo adjunto */}
           {message.fileUrl && (
             <div className="mt-1.5">
               {message.fileType?.startsWith("image/") ? (
@@ -324,7 +246,6 @@ function MessageBubble({ message, isOwn, isGold, onShare }: {
           )}
         </div>
 
-        {/* Compartir (hover) */}
         <AnimatePresence>
           {hover && (
             <motion.button
@@ -343,10 +264,14 @@ function MessageBubble({ message, isOwn, isGold, onShare }: {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// MODAL SUSCRIPCIÃ“N GOLD
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function GoldSubscribeModal({ onClose, onSubscribe }: { onClose: () => void; onSubscribe: () => void }) {
+// ─────────────────────────────────────────────────────────────────────────────
+// MODAL SUSCRIPCIÓN GOLD
+// ─────────────────────────────────────────────────────────────────────────────
+function GoldSubscribeModal({ onClose, onSubscribe, loading }: {
+  onClose: () => void;
+  onSubscribe: () => void;
+  loading?: boolean;
+}) {
   return (
     <Overlay>
       <motion.div
@@ -375,12 +300,13 @@ function GoldSubscribeModal({ onClose, onSubscribe }: { onClose: () => void; onS
           </ul>
 
           <div className="w-full space-y-2">
-            <Btn variant="gold" onClick={onSubscribe} className="w-full" testId="button-subscribe-gold">
-              <Sparkles className="h-4 w-4" /> Suscribirme â€” $9.99/mes
+            <Btn variant="gold" onClick={onSubscribe} disabled={loading} className="w-full" testId="button-subscribe-gold">
+              <Sparkles className="h-4 w-4" />
+              {loading ? "Procesando pago..." : "Suscribirme — 9.99 WLD"}
             </Btn>
             <button onClick={onClose} data-testid="button-cancel-gold"
               className="w-full text-xs text-yellow-100/40 cursor-pointer py-1">
-              QuizÃ¡s mÃ¡s tarde
+              Quizás más tarde
             </button>
           </div>
         </div>
@@ -389,9 +315,9 @@ function GoldSubscribeModal({ onClose, onSubscribe }: { onClose: () => void; onS
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // MODAL CREAR SALA
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
   onClose: () => void;
   onCreate: (room: Omit<ChatRoom, "id">) => void;
@@ -414,9 +340,8 @@ function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
 
         <div className="space-y-3">
           <ModalInput label="Nombre de la sala" value={name} onChange={setName} placeholder="ej. off-topic" maxLength={50} testId="input-room-name" />
-          <ModalInput label="DescripciÃ³n (opcional)" value={description} onChange={setDescription} placeholder="De quÃ© trata esta sala" maxLength={100} testId="input-room-description" />
+          <ModalInput label="Descripción (opcional)" value={description} onChange={setDescription} placeholder="De qué trata esta sala" maxLength={100} testId="input-room-description" />
 
-          {/* Tipo */}
           <div>
             <label className="mb-1 block text-xs text-indigo-300">Tipo</label>
             <div className="flex gap-2">
@@ -443,7 +368,6 @@ function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
             </div>
           </div>
 
-          {/* Privacidad */}
           <div className="flex items-center gap-2">
             <button onClick={() => setIsPrivate(!isPrivate)} data-testid="button-toggle-private"
               className={cx("flex h-5 w-9 items-center rounded-full border transition-all cursor-pointer",
@@ -453,7 +377,7 @@ function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
             </button>
             <span className="flex items-center gap-1 text-xs text-indigo-300">
               {isPrivate ? <Lock className="h-3 w-3" /> : <Globe className="h-3 w-3" />}
-              {isPrivate ? "Sala privada" : "Sala pÃºblica"}
+              {isPrivate ? "Sala privada" : "Sala pública"}
             </span>
           </div>
         </div>
@@ -475,11 +399,11 @@ function CreateRoomModal({ onClose, onCreate, canCreateGold }: {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // MODAL COMPARTIR
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function ShareModal({ message, onClose }: { message: ChatMessage; onClose: () => void }) {
-  const text = encodeURIComponent(`"${message.content}" â€” ${message.username} en GlobalChat`);
+  const text = encodeURIComponent(`"${message.content}" — ${message.username} en GlobalChat`);
 
   const platforms = [
     { label: "Twitter / X",  url: `https://twitter.com/intent/tweet?text=${text}`,  color: "text-sky-400",    icon: <Twitter className="h-4 w-4" /> },
@@ -522,9 +446,9 @@ function ShareModal({ message, onClose }: { message: ChatMessage; onClose: () =>
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // CHAT INPUT
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function ChatInput({ onSend, onTyping, isGold, disabled }: {
   onSend: (content: string, file?: File) => void;
   onTyping: (isTyping: boolean) => void;
@@ -570,7 +494,6 @@ function ChatInput({ onSend, onTyping, isGold, disabled }: {
 
   return (
     <div className={cx("border-t p-3 flex-shrink-0", isGold ? "border-yellow-500/20 bg-yellow-950/30" : "border-indigo-500/20 bg-indigo-950/30")}>
-      {/* Preview archivo */}
       <AnimatePresence>
         {file && (
           <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
@@ -591,7 +514,6 @@ function ChatInput({ onSend, onTyping, isGold, disabled }: {
       </AnimatePresence>
 
       <div className="flex items-end gap-2">
-        {/* Adjuntar */}
         <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx,.txt"
           data-testid="input-file-upload"
           onChange={(e) => {
@@ -610,7 +532,6 @@ function ChatInput({ onSend, onTyping, isGold, disabled }: {
           <Paperclip className="h-4 w-4" />
         </button>
 
-        {/* Textarea */}
         <textarea
           ref={textareaRef}
           value={text}
@@ -629,7 +550,6 @@ function ChatInput({ onSend, onTyping, isGold, disabled }: {
           )}
         />
 
-        {/* Enviar */}
         <button
           onClick={send}
           disabled={disabled || (!text.trim() && !file)}
@@ -648,9 +568,9 @@ function ChatInput({ onSend, onTyping, isGold, disabled }: {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // HELPERS DE LAYOUT
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
@@ -683,7 +603,6 @@ function ModalInput({ label, value, onChange, placeholder, maxLength, testId }: 
   );
 }
 
-// SVG icons para redes sociales (internos)
 function WhatsAppIcon() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
@@ -701,55 +620,77 @@ function DiscordIcon() {
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 // COMPONENTE PRINCIPAL
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
 export default function GlobalChatRoom({
   isOpen,
   onClose,
   currentUserId,
 }: GlobalChatRoomProps) {
-  // â”€â”€ Estado â”€â”€
-  const [roomType,       setRoomType]       = useState<RoomType>("classic");
-  const [rooms,          setRooms]          = useState<ChatRoom[]>(STATIC_ROOMS);
-  const [selectedRoomId, setSelectedRoomId] = useState("classic-general");
-  const [messages,       setMessages]       = useState<Record<string, ChatMessage[]>>({});
-  const [typingUsers,    setTypingUsers]    = useState<TypingUser[]>([]);
-  const [connected,      setConnected]      = useState<ConnectedUser[]>([]);
-  const [showRooms,      setShowRooms]      = useState(false);
-  const [showGoldModal,  setShowGoldModal]  = useState(false);
-  const [showCreateRoom, setShowCreateRoom] = useState(false);
-  const [shareMsg,       setShareMsg]       = useState<ChatMessage | null>(null);
-  const [isSubscribed,   setIsSubscribed]   = useState(false);
+  const [roomType,        setRoomType]        = useState<RoomType>("classic");
+  const [rooms,           setRooms]           = useState<ChatRoom[]>(STATIC_ROOMS);
+  const [selectedRoomId,  setSelectedRoomId]  = useState("classic-general");
+  const [messages,        setMessages]        = useState<Record<string, ChatMessage[]>>({});
+  const [typingUsers,     setTypingUsers]     = useState<TypingUser[]>([]);
+  const [connected,       setConnected]       = useState<ConnectedUser[]>([]);
+  const [showRooms,       setShowRooms]       = useState(false);
+  const [showGoldModal,   setShowGoldModal]   = useState(false);
+  const [showCreateRoom,  setShowCreateRoom]  = useState(false);
+  const [shareMsg,        setShareMsg]        = useState<ChatMessage | null>(null);
+  const [isSubscribed,    setIsSubscribed]    = useState(false);
+  const [goldLoading,     setGoldLoading]     = useState(false);
 
-  // â”€â”€ Refs â”€â”€
-  const bottomRef        = useRef<HTMLDivElement>(null);
-  const realtimeRef      = useRef<ReturnType<typeof supabase.channel> | null>(null);
-  const typingTimeouts   = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const bottomRef       = useRef<HTMLDivElement>(null);
+  const realtimeRef     = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const typingTimeouts  = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
 
-  // â”€â”€ Derivados â”€â”€
   const isGold         = roomType === "gold";
   const canUseGold     = isSubscribed;
   const selectedRoom   = rooms.find((r) => r.id === selectedRoomId);
   const activeMessages = messages[selectedRoomId] ?? [];
   const filteredRooms  = rooms.filter((r) => r.type === roomType);
 
-  // â”€â”€ Determinar el username para mostrar â”€â”€
-  // Intentamos leer desde los mensajes ya cargados o usamos una porciÃ³n del id
   const displayUsername = useCallback((userId: string): string => {
-    // Si ya tenemos mensajes del usuario, usamos su username guardado
     for (const msgs of Object.values(messages)) {
       const found = msgs.find((m) => m.userId === userId);
-      if (found?.username) return found.username;
+      if (found?.username && found.username !== userId) return found.username;
     }
-    // Fallback: mostrar los Ãºltimos 6 caracteres del id
     return userId.slice(-6);
   }, [messages]);
 
-  // â”€â”€ Cargar mensajes iniciales al cambiar de sala â”€â”€
+  // ── Verificar suscripción real en Supabase ──
+  useEffect(() => {
+    if (!currentUserId || !isOpen) return;
+    const check = async () => {
+      const { data } = await supabase
+        .from("subscriptions")
+        .select("product")
+        .eq("user_id", currentUserId)
+        .in("product", ["chat_classic", "chat_gold"])
+        .maybeSingle();
+
+      if (data) {
+        setIsSubscribed(true);
+        if (data.product === "chat_gold") {
+          setRoomType("gold");
+          switchRoom("gold-vip");
+        }
+      }
+    };
+    check();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, isOpen]);
+
+  const switchRoom = useCallback((roomId: string) => {
+    setSelectedRoomId(roomId);
+    setShowRooms(false);
+    setTypingUsers([]);
+  }, []);
+
+  // ── Cargar mensajes iniciales ──
   useEffect(() => {
     if (!isOpen) return;
-
     let cancelled = false;
 
     const loadMessages = async () => {
@@ -761,59 +702,47 @@ export default function GlobalChatRoom({
         .limit(50);
 
       if (cancelled) return;
-
-      if (error) {
-        console.error("[GlobalChat] Error cargando mensajes:", error.message);
-        return;
-      }
+      if (error) { console.error("[GlobalChat] Error cargando mensajes:", error.message); return; }
 
       const mapped = (data ?? []).map((row) => rowToMessage(row as Record<string, unknown>));
       setMessages((prev) => ({ ...prev, [selectedRoomId]: mapped }));
     };
 
     loadMessages();
-
     return () => { cancelled = true; };
   }, [isOpen, selectedRoomId]);
 
-  // â”€â”€ Supabase Realtime: postgres_changes + broadcast â”€â”€
+  // ── Supabase Realtime: postgres_changes + broadcast + presence ──
   useEffect(() => {
     if (!isOpen) return;
 
-    // Limpiar canal anterior si existe
     if (realtimeRef.current) {
       supabase.removeChannel(realtimeRef.current);
       realtimeRef.current = null;
     }
 
-    const channelName = `globalchat-${selectedRoomId}`;
-
     const channel = supabase
-      .channel(channelName, { config: { broadcast: { self: false } } })
-      // Nuevos mensajes en la tabla
+      .channel(`globalchat-${selectedRoomId}`, {
+        config: {
+          broadcast: { self: false },
+          presence:  { key: currentUserId },
+        },
+      })
       .on(
         "postgres_changes",
-        {
-          event:  "INSERT",
-          schema: "public",
-          table:  "global_chat_messages",
-          filter: `room_id=eq.${selectedRoomId}`,
-        },
+        { event: "INSERT", schema: "public", table: "global_chat_messages", filter: `room_id=eq.${selectedRoomId}` },
         (payload) => {
           const newMsg = rowToMessage(payload.new as Record<string, unknown>);
           setMessages((prev) => {
             const existing = prev[selectedRoomId] ?? [];
-            // Evitar duplicados (mensaje optimista temporal)
             const withoutTemp = existing.filter(
               (m) => !(m.id.startsWith("temp-") && m.userId === newMsg.userId && m.content === newMsg.content)
             );
-            // Evitar insertar si ya existe con ese id
             if (withoutTemp.some((m) => m.id === newMsg.id)) return prev;
             return { ...prev, [selectedRoomId]: [...withoutTemp, newMsg] };
           });
         }
       )
-      // Broadcast: indicador de typing
       .on("broadcast", { event: "typing" }, (payload) => {
         const { user, username } = payload.payload as { user: string; username?: string };
         if (user === currentUserId) return;
@@ -823,40 +752,37 @@ export default function GlobalChatRoom({
           return [...prev, { userId: user, username: username ?? user.slice(-6) }];
         });
 
-        // Limpiar typing despuÃ©s de 2 s sin recibir seÃ±al
         if (typingTimeouts.current[user]) clearTimeout(typingTimeouts.current[user]);
         typingTimeouts.current[user] = setTimeout(() => {
           setTypingUsers((prev) => prev.filter((u) => u.userId !== user));
           delete typingTimeouts.current[user];
         }, 2000);
       })
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState<ConnectedUser>();
+        const users = Object.values(state).flat() as ConnectedUser[];
+        setConnected(users.filter((u) => u.userId !== currentUserId));
+      })
       .subscribe();
 
+    channel.track({ userId: currentUserId, username: displayUsername(currentUserId) });
     realtimeRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
       realtimeRef.current = null;
-      // Limpiar todos los timeouts de typing
       Object.values(typingTimeouts.current).forEach(clearTimeout);
       typingTimeouts.current = {};
       setTypingUsers([]);
+      setConnected([]);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, selectedRoomId, currentUserId]);
 
-  // â”€â”€ Auto-scroll â”€â”€
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [activeMessages.length, typingUsers.length]);
 
-  // â”€â”€ Cambiar sala â”€â”€
-  const switchRoom = useCallback((roomId: string) => {
-    setSelectedRoomId(roomId);
-    setShowRooms(false);
-    setTypingUsers([]);
-  }, []);
-
-  // â”€â”€ Cambiar tipo (classic / gold) â”€â”€
   const handleSwitchType = (type: RoomType) => {
     if (type === "gold" && !canUseGold) { setShowGoldModal(true); return; }
     setRoomType(type);
@@ -864,38 +790,82 @@ export default function GlobalChatRoom({
     if (firstRoom) switchRoom(firstRoom.id);
   };
 
-  // â”€â”€ Enviar mensaje â”€â”€
-  const handleSend = async (content: string, _file?: File) => {
-    if (!content.trim()) return;
+  // ── Pago Gold real con MiniKit ──
+  const handleGoldSubscribe = async () => {
+    if (!currentUserId) return;
+    setGoldLoading(true);
+
+    try {
+      const payRes = await MiniKit.commandsAsync.pay({
+        reference: `chat_gold-${Date.now()}`.slice(0, 36),
+        to:        RECEIVER,
+        tokens: [{ symbol: Tokens.WLD, token_amount: tokenToDecimals(9.99, Tokens.WLD).toString() }],
+        description: "Suscripción Gold Chat",
+      });
+
+      if (payRes?.finalPayload?.status === "success") {
+        const { error: dbError } = await supabase
+          .from("subscriptions")
+          .upsert({ user_id: currentUserId, product: "chat_gold" });
+
+        if (dbError) { console.error("[GlobalChat] Error guardando suscripción:", dbError.message); return; }
+
+        setIsSubscribed(true);
+        setShowGoldModal(false);
+        setRoomType("gold");
+        const first = rooms.find((r) => r.type === "gold");
+        if (first) switchRoom(first.id);
+      }
+    } catch (err: unknown) {
+      console.error("[GlobalChat] Error en pago Gold:", err);
+    } finally {
+      setGoldLoading(false);
+    }
+  };
+
+  // ── Enviar mensaje con subida de archivo real ──
+  const handleSend = async (content: string, file?: File) => {
+    if (!content.trim() && !file) return;
+
+    const username = displayUsername(currentUserId);
+    let fileUrl: string | undefined;
+    let fileName: string | undefined;
+    let fileType: string | undefined;
+
+    if (file) {
+      const filePath = `${currentUserId}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from("chat-files")
+        .upload(filePath, file, { cacheControl: "3600", upsert: false });
+
+      if (uploadError) { console.error("[GlobalChat] Error subiendo archivo:", uploadError.message); return; }
+
+      const { data: urlData } = supabase.storage.from("chat-files").getPublicUrl(filePath);
+      fileUrl  = urlData.publicUrl;
+      fileName = file.name;
+      fileType = file.type;
+    }
 
     const tempId = `temp-${Date.now()}`;
     const optimistic: ChatMessage = {
-      id:        tempId,
-      roomId:    selectedRoomId,
-      userId:    currentUserId,
-      username:  displayUsername(currentUserId),
-      content:   content.trim(),
+      id: tempId, roomId: selectedRoomId, userId: currentUserId,
+      username, content: content.trim() || undefined, fileUrl, fileName, fileType,
       createdAt: new Date().toISOString(),
     };
 
-    // ActualizaciÃ³n optimista
-    setMessages((prev) => ({
-      ...prev,
-      [selectedRoomId]: [...(prev[selectedRoomId] ?? []), optimistic],
-    }));
+    setMessages((prev) => ({ ...prev, [selectedRoomId]: [...(prev[selectedRoomId] ?? []), optimistic] }));
 
-    const { error } = await supabase
-      .from("global_chat_messages")
-      .insert({
-        room_id:    selectedRoomId,
-        sender_id:  currentUserId,
-        content:    content.trim(),
-        created_at: new Date().toISOString(),
-      });
+    const { error } = await supabase.from("global_chat_messages").insert({
+      room_id: selectedRoomId, sender_id: currentUserId, username,
+      content:   content.trim() || null,
+      file_url:  fileUrl   ?? null,
+      file_name: fileName  ?? null,
+      file_type: fileType  ?? null,
+      created_at: new Date().toISOString(),
+    });
 
     if (error) {
-      console.error("[GlobalChat] Error al guardar mensaje:", error.message);
-      // Revertir optimista en caso de error
+      console.error("[GlobalChat] Error guardando mensaje:", error.message);
       setMessages((prev) => ({
         ...prev,
         [selectedRoomId]: (prev[selectedRoomId] ?? []).filter((m) => m.id !== tempId),
@@ -903,47 +873,44 @@ export default function GlobalChatRoom({
     }
   };
 
-  // â”€â”€ Enviar seÃ±al de typing â”€â”€
   const handleTyping = useCallback((isTyping: boolean) => {
     if (!isTyping || !realtimeRef.current) return;
     realtimeRef.current.send({
-      type:    "broadcast",
-      event:   "typing",
+      type: "broadcast", event: "typing",
       payload: { user: currentUserId, username: displayUsername(currentUserId) },
     });
   }, [currentUserId, displayUsername]);
 
-  // â”€â”€ Crear sala local â”€â”€
-  const handleCreateRoom = (data: Omit<ChatRoom, "id">) => {
-    const room: ChatRoom = { ...data, id: `room-${Date.now()}` };
+  const handleCreateRoom = async (data: Omit<ChatRoom, "id">) => {
+    const localId = `room-${Date.now()}`;
+    const room: ChatRoom = { ...data, id: localId };
+
+    const { data: inserted, error } = await supabase
+      .from("chat_rooms")
+      .insert({ name: data.name, type: data.type, is_private: data.isPrivate, description: data.description ?? null, created_by: currentUserId })
+      .select("id")
+      .maybeSingle();
+
+    if (!error && inserted?.id) room.id = String(inserted.id);
+
     setRooms((p) => [...p, room]);
     setMessages((p) => ({ ...p, [room.id]: [] }));
     setRoomType(room.type);
     switchRoom(room.id);
   };
 
-  // â”€â”€ SuscripciÃ³n Gold â”€â”€
-  const handleSubscribe = () => {
-    setIsSubscribed(true);
-    setShowGoldModal(false);
-    setRoomType("gold");
-    const first = rooms.find((r) => r.type === "gold");
-    if (first) switchRoom(first.id);
-  };
-
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────────────────────────────────────────────────────────────────────
   // RENDER
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div
           initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
           className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md bg-black/60"
-          onClick={(e) => e.target === e.currentTarget && onClose()}
-          data-testid="overlay-chat-modal"
+          onClick={(e) => e.target === e.currentTarget && onClose()} 
+                    data-testid="overlay-chat-modal"
         >
-          {/* Ventana */}
           <motion.div
             initial={{ opacity: 0, scale: 0.93, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -957,23 +924,20 @@ export default function GlobalChatRoom({
             )}
             data-testid="container-chat-room"
           >
-
-            {/* â•â• HEADER â•â• */}
+            {/* ══ HEADER ══ */}
             <div className={cx("flex items-center gap-3 px-4 py-3 border-b flex-shrink-0",
               isGold ? "border-yellow-500/20 bg-yellow-900/20" : "border-indigo-500/20 bg-indigo-900/20")}>
 
-              {/* Icono sala */}
               <div className={cx("flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
                 isGold ? "bg-yellow-500/20 text-yellow-400" : "bg-indigo-500/20 text-indigo-400")}>
                 {isGold ? <Crown className="h-5 w-5" /> : <MessageSquare className="h-5 w-5" />}
               </div>
 
-              {/* Nombre + selector */}
               <div className="flex-1 min-w-0">
                 <button onClick={() => setShowRooms(!showRooms)} data-testid="button-toggle-room-list"
                   className="flex items-center gap-1 cursor-pointer">
                   <span className="font-bold text-sm text-white truncate">
-                    {isGold ? "Gold Chat" : "Global Chat"} â€” {selectedRoom?.name ?? "General"}
+                    {isGold ? "Gold Chat" : "Global Chat"} — {selectedRoom?.name ?? "General"}
                   </span>
                   <ChevronDown className={cx("h-3.5 w-3.5 text-white/40 transition-transform", showRooms && "rotate-180")} />
                 </button>
@@ -984,10 +948,8 @@ export default function GlobalChatRoom({
                 </div>
               </div>
 
-              {/* Avatar usuario (iniciales del id) */}
               <Avatar name={displayUsername(currentUserId)} gold={isGold} />
 
-              {/* Toggle Classic / Gold (solo si estÃ¡ suscrito) */}
               {isSubscribed && (
                 <div className="flex rounded-lg border border-white/10 overflow-hidden">
                   {(["classic", "gold"] as RoomType[]).map((t) => (
@@ -1003,7 +965,7 @@ export default function GlobalChatRoom({
                   ))}
                 </div>
               )}
-{/* BotÃ³n upgrade Gold */}
+
               {!isSubscribed && (
                 <button onClick={() => setShowGoldModal(true)} data-testid="button-upgrade-gold"
                   className="flex items-center gap-1 rounded-lg bg-gradient-to-r from-yellow-500 to-amber-500 px-2 py-1 text-[10px] font-bold text-white cursor-pointer shadow shadow-yellow-500/30">
@@ -1011,14 +973,13 @@ export default function GlobalChatRoom({
                 </button>
               )}
 
-              {/* Cerrar */}
               <button onClick={onClose} data-testid="button-close-chat"
                 className="flex-shrink-0 text-white/40 cursor-pointer p-1">
                 <X className="h-5 w-5" />
               </button>
             </div>
-          
-            {/* â•â• DROPDOWN LISTA DE SALAS â•â• */}
+
+            {/* ══ DROPDOWN SALAS ══ */}
             <AnimatePresence>
               {showRooms && (
                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
@@ -1053,7 +1014,7 @@ export default function GlobalChatRoom({
               )}
             </AnimatePresence>
 
-            {/* â•â• BARRA DE USUARIOS CONECTADOS â•â• */}
+            {/* ══ USUARIOS CONECTADOS ══ */}
             <div className="flex items-center gap-2 overflow-x-auto px-4 py-1.5 flex-shrink-0" style={{ scrollbarWidth: "none" }}>
               <Users className="h-3 w-3 flex-shrink-0 text-white/20" />
               <div className="flex -space-x-1.5">
@@ -1069,11 +1030,10 @@ export default function GlobalChatRoom({
               <RoleBadge role={isSubscribed ? "gold" : "free"} />
             </div>
 
-            {/* â•â• ÃREA DE MENSAJES â•â• */}
+            {/* ══ MENSAJES ══ */}
             <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" data-testid="container-messages"
               style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}>
 
-              {/* Estado vacÃ­o */}
               {activeMessages.length === 0 && (
                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center min-h-[200px]">
                   <div className={cx("flex h-14 w-14 items-center justify-center rounded-2xl",
@@ -1081,13 +1041,12 @@ export default function GlobalChatRoom({
                     {isGold ? <Crown className="h-7 w-7" /> : <MessageSquare className="h-7 w-7" />}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-white/60">No hay mensajes aÃºn</p>
-                    <p className="text-xs text-white/30">SÃ© el primero en escribir algo</p>
+                    <p className="text-sm font-medium text-white/60">No hay mensajes aún</p>
+                    <p className="text-xs text-white/30">Sé el primero en escribir algo</p>
                   </div>
                 </div>
               )}
 
-              {/* Mensajes */}
               {activeMessages.map((msg) => (
                 <MessageBubble
                   key={msg.id}
@@ -1098,7 +1057,6 @@ export default function GlobalChatRoom({
                 />
               ))}
 
-              {/* Typing */}
               <AnimatePresence>
                 {typingUsers.length > 0 && <TypingIndicator users={typingUsers} />}
               </AnimatePresence>
@@ -1106,7 +1064,7 @@ export default function GlobalChatRoom({
               <div ref={bottomRef} />
             </div>
 
-            {/* â•â• INPUT â•â• */}
+            {/* ══ INPUT ══ */}
             <ChatInput
               onSend={handleSend}
               onTyping={handleTyping}
@@ -1114,11 +1072,25 @@ export default function GlobalChatRoom({
               disabled={isGold && !canUseGold}
             />
 
-            {/* â•â• MODALES INTERNOS â•â• */}
+            {/* ══ MODALES ══ */}
             <AnimatePresence>
-              {showGoldModal  && <GoldSubscribeModal  onClose={() => setShowGoldModal(false)}  onSubscribe={handleSubscribe} />}
-              {showCreateRoom && <CreateRoomModal      onClose={() => setShowCreateRoom(false)} onCreate={handleCreateRoom} canCreateGold={canUseGold} />}
-              {shareMsg       && <ShareModal           message={shareMsg}                       onClose={() => setShareMsg(null)} />}
+              {showGoldModal && (
+                <GoldSubscribeModal
+                  onClose={() => setShowGoldModal(false)}
+                  onSubscribe={handleGoldSubscribe}
+                  loading={goldLoading}
+                />
+              )}
+              {showCreateRoom && (
+                <CreateRoomModal
+                  onClose={() => setShowCreateRoom(false)}
+                  onCreate={handleCreateRoom}
+                  canCreateGold={canUseGold}
+                />
+              )}
+              {shareMsg && (
+                <ShareModal message={shareMsg} onClose={() => setShareMsg(null)} />
+              )}
             </AnimatePresence>
 
           </motion.div>
@@ -1128,88 +1100,67 @@ export default function GlobalChatRoom({
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-//       CÃ“MO USAR ESTE CHAT EN TU PROYECTO ACTUAL
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+//  SETUP REQUERIDO EN SUPABASE
+// ─────────────────────────────────────────────────────────────────────────────
 //
-// 1. Importa en PostCard.tsx (ajusta la ruta segÃºn tu estructura):
-//      import GlobalChatRoom from "../pages/chat/GlobalChatRoom";
+//  1. TABLA: global_chat_messages
 //
-// 2. Agrega el estado dentro del componente:
-//      const [showGlobalChat, setShowGlobalChat] = useState(false);
+//     CREATE TABLE IF NOT EXISTS public.global_chat_messages (
+//       id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+//       room_id     text        NOT NULL,
+//       sender_id   text        NOT NULL,
+//       username    text,
+//       content     text,
+//       file_url    text,
+//       file_name   text,
+//       file_type   text,
+//       created_at  timestamptz DEFAULT now()
+//     );
+//     ALTER TABLE public.global_chat_messages ENABLE ROW LEVEL SECURITY;
+//     CREATE POLICY "read"   ON public.global_chat_messages FOR SELECT USING (true);
+//     CREATE POLICY "insert" ON public.global_chat_messages FOR INSERT WITH CHECK (true);
+//     -- Database → Replication → Tables → global_chat_messages ✓
 //
-// 3. En el botÃ³n de "Chat Exclusivo":
-//      onClick={() => setShowGlobalChat(true)}
+//  2. TABLA: subscriptions
 //
-// 4. Agrega al final del return (FUERA del div principal de la tarjeta,
-//    envuelto en un fragment <> </>):
+//     CREATE TABLE IF NOT EXISTS public.subscriptions (
+//       id         uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+//       user_id    text        NOT NULL,
+//       product    text        NOT NULL,
+//       created_at timestamptz DEFAULT now(),
+//       UNIQUE (user_id, product)
+//     );
+//     ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+//     CREATE POLICY "read"   ON public.subscriptions FOR SELECT USING (true);
+//     CREATE POLICY "insert" ON public.subscriptions FOR INSERT WITH CHECK (true);
+//     CREATE POLICY "upsert" ON public.subscriptions FOR UPDATE USING (true);
 //
-//      {showGlobalChat && (
-//        <div className="fixed inset-0 z-[99999] bg-black/95 flex flex-col">
-//          <button
-//            onClick={() => setShowGlobalChat(false)}
-//            className="absolute top-5 right-5 z-10 text-white/60 text-sm px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
-//          >
-//            â† Volver
-//          </button>
-//          <div className="flex-1 pt-16 overflow-hidden">
-//            <GlobalChatRoom
-//              isOpen={showGlobalChat}
-//              onClose={() => setShowGlobalChat(false)}
-//              currentUserId={currentUserId!}
-//            />
-//          </div>
-//        </div>
-//      )}
+//  3. TABLA: chat_rooms  (opcional)
 //
-// 5. AsegÃºrate de que currentUserId sea el string del usuario logueado
-//    (ej. la wallet address "0x0250990b..." o el UUID de Supabase Auth).
+//     CREATE TABLE IF NOT EXISTS public.chat_rooms (
+//       id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+//       name        text        NOT NULL,
+//       type        text        NOT NULL,
+//       is_private  boolean     DEFAULT false,
+//       description text,
+//       created_by  text,
+//       created_at  timestamptz DEFAULT now()
+//     );
+//     ALTER TABLE public.chat_rooms ENABLE ROW LEVEL SECURITY;
+//     CREATE POLICY "read"   ON public.chat_rooms FOR SELECT USING (true);
+//     CREATE POLICY "insert" ON public.chat_rooms FOR INSERT WITH CHECK (true);
 //
-// 6. El archivo supabaseClient.ts debe exportar el cliente Supabase asÃ­:
-//      import { createClient } from "@supabase/supabase-js";
-//      export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+//  4. STORAGE BUCKET: chat-files  (público)
 //
-// 7. Tabla requerida en Supabase (crea o verifica que exista):
+//     INSERT INTO storage.buckets (id, name, public)
+//     VALUES ('chat-files', 'chat-files', true) ON CONFLICT DO NOTHING;
 //
-//      CREATE TABLE IF NOT EXISTS public.global_chat_messages (
-//        id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
-//        room_id     text NOT NULL,
-//        sender_id   text NOT NULL,
-//        content     text,
-//        created_at  timestamptz DEFAULT now()
-//      );
+//     CREATE POLICY "upload" ON storage.objects
+//       FOR INSERT TO authenticated, anon WITH CHECK (bucket_id = 'chat-files');
+//     CREATE POLICY "public_read" ON storage.objects
+//       FOR SELECT USING (bucket_id = 'chat-files');
 //
-//      -- Habilitar RLS (ajusta las polÃ­ticas segÃºn tus necesidades):
-//      ALTER TABLE public.global_chat_messages ENABLE ROW LEVEL SECURITY;
-//
-//      -- PolÃ­tica de lectura (todos los autenticados pueden leer):
-//      CREATE POLICY "read_messages" ON public.global_chat_messages
-//        FOR SELECT USING (true);
-//
-//      -- PolÃ­tica de escritura (solo el propio usuario puede insertar):
-//      CREATE POLICY "insert_own_messages" ON public.global_chat_messages
-//        FOR INSERT WITH CHECK (true);
-//
-//      -- Habilitar Realtime para la tabla desde el dashboard de Supabase:
-//      -- Database â†’ Replication â†’ Tables â†’ global_chat_messages âœ“
-//
-// 8. Prueba y revisa la consola por errores de Supabase
-//    (RLS, permisos, tabla inexistente, realtime no habilitado, etc.)
-//
-// â”€â”€ CONFIRMACIÃ“N â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// âœ”  Todas las salas (classic + gold) y su navegaciÃ³n â†’ INTACTAS
-// âœ”  Modo Gold / Classic (colores, badges, diferencias visuales) â†’ INTACTOS
-// âœ”  Animaciones Framer Motion y AnimatePresence â†’ INTACTAS
-// âœ”  Avatares con fallback de iniciales â†’ INTACTOS
-// âœ”  Typing indicator animado â†’ INTACTO (ahora via Supabase broadcast)
-// âœ”  Barra de usuarios conectados (visual) â†’ INTACTA
-// âœ”  Modal crear sala â†’ INTACTO
-// âœ”  Modal suscripciÃ³n Gold â†’ INTACTO
-// âœ”  Modal compartir mensaje â†’ INTACTO
-// âœ”  Input con Paperclip (botÃ³n visible) â†’ INTACTO
-// âœ”  Todo el diseÃ±o, clases Tailwind, icons Lucide, JSX â†’ INTACTOS
-// âœ”  SEED_CLASSIC, SEED_GOLD, SEED_ROOMS, SEED_CONNECTED â†’ ELIMINADOS
-// âœ”  Fuente de datos: Supabase realtime (postgres_changes + broadcast)
-// âœ”  Props simplificadas: isOpen, onClose, currentUserId (string)
-// âœ”  No usa WebSocket propio ni fetch a API externa
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ─────────────────────────────────────────────────────────────────────────────
+// ✅ CHAT 100% FUNCIONAL - Listo para Worldcoin Mini App
+// ─────────────────────────────────────────────────────────────────────────────
