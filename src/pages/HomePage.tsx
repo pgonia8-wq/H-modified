@@ -53,7 +53,7 @@ const HomePage: React.FC<HomePageProps> = ({
   const { theme, toggleTheme, username } = useContext(ThemeContext);
   const { language, setLanguage, t } = useContext(LanguageContext);
   const containerRef = useRef<HTMLDivElement>(null);
-
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const maxChars =
     profile?.tier === "premium+"
       ? 10000
