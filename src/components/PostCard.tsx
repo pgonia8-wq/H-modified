@@ -504,23 +504,25 @@ const handleBlock = async () => {
   };
 
   const isDark = theme === "dark";
-
-  if (blocked) return (
+if (blocked) return (
   <div className={`px-4 py-3 border-b text-sm ${isDark ? "bg-black border-gray-800 text-gray-600" : "bg-white border-gray-100 text-gray-400"}`}>
     Has bloqueado a este usuario. Su contenido no se mostrará.
   </div>
 );
-      
-      ref={postRef}
-      className={
-        relative px-4 py-4 mb-0
-        border-b transition-colors
-        ${isDark
-          ? "bg-black border-gray-800 hover:bg-gray-950"
-          : "bg-white border-gray-100 hover:bg-gray-50"
-        }
+
+return (
+  <div
+    ref={postRef}
+    className={`
+      relative px-4 py-4 mb-0
+      border-b transition-colors
+      ${isDark
+        ? "bg-black border-gray-800 hover:bg-gray-950"
+        : "bg-white border-gray-100 hover:bg-gray-50"
       }
-    >
+    `}
+  >
+
       {/* Repost banner */}
       {post.reposted_post_id && (
         <div className="flex items-center gap-2 mb-3 ml-10 text-xs text-gray-500 font-medium">
