@@ -684,7 +684,6 @@ return (
     )}
   </div>
 )}
-          
           {/* Post content */}
 <p className={`mt-2 text-sm leading-relaxed whitespace-pre-wrap ${isDark ? "text-gray-100" : "text-gray-800"}`}>
   {post.content}
@@ -698,8 +697,6 @@ return (
     className="mt-3 rounded-xl w-full object-cover max-h-80 border border-gray-800"
   />
 )}
-
-
 
           {/* Original reposted post */}
           {originalPost && (
