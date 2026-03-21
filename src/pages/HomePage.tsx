@@ -433,64 +433,7 @@ const handleProfileUpdated = (updatedProfile: { id: string; avatar_url?: string 
         </div>
       )}
 
-      {showInbox && userId && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center px-4">
-          <div className="bg-gray-900 rounded-2xl w-full max-w-md h-[90vh] flex flex-col border border-white/10 shadow-lg">
-            <div className="flex items-center justify-between p-4 border-b border-white/20">
-              <h2 className="text-white font-bold text-lg">{t("messages")}</h2>
-              <button onClick={() => setShowInbox(false)} className="text-gray-400 hover:text-white">
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              <Inbox
-                currentUserId={userId}
-                setSelectedChatUserId={setSelectedChatUserId}
-              />
-            </div>
-
-            <div className="p-4 border-t border-white/20 bg-gray-900">
-              <div className="flex items-center gap-2 relative">
-                <input
-                  type="text"
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder={t("write_a_message")}
-                  className={`flex-1 p-3 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 ${
-                    theme === "dark" ? "bg-gray-800 text-white" : "bg-white text-black border border-gray-300"
-                  }`}
-                />
-                <label className="cursor-pointer p-3 bg-gray-700 rounded-full">
-                  <span role="img" aria-label="attach">📎</span>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,video/*,.pdf"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files) {
-                        setNewMessageAttachments(Array.from(e.target.files));
-                      }
-                    }}
-                  />
-                </label>
-                <button
-                  onClick={handleSendMessage}
-                  className="p-3 bg-indigo-600 rounded-full"
-                >
-                  <span role="img" aria-label="send">➤</span>
-                </button>
-              </div>
-              {newMessageAttachments.length > 0 && (
-                <div className="mt-2 text-xs text-gray-400">
-                  {t("attachments")}: {newMessageAttachments.map(f => f.name).join(", ")}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      
             {userId && (
   <Inbox
     isOpen={showInbox}
