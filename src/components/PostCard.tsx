@@ -86,6 +86,21 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     checkChatAccess();
   }, [currentUserId]);
 
+      useEffect(() => {
+  const checkIfBlocked = async () => {
+    if (!currentUserId || !post.user_id) return;
+    const { data } = await supabase
+      .from("blocks")
+      .select("id")
+      .eq("blocker_id", currentUserId)
+      .eq("blocked_id", post.user_id)
+      .maybeSingle();
+    if (data) setBlocked(true);
+  };
+  checkIfBlocked();
+}, [currentUserId, post.user_id]);
+
+  
   useEffect(() => {
     const fetchOriginalPost = async () => {
       if (!post || !post.reposted_post_id) return;
@@ -498,15 +513,39 @@ const handleBlock = async () => {
     setError("Error al bloquear usuario: " + err.message);
   }
 };
-  
+  const handleUnblock = async () => {
+  if (!currentUserId) return;
+  try {
+    await supabase
+      .from("blocks")
+      .delete()
+      .eq("blocker_id", currentUserId)
+      .eq("blocked_id", post.user_id);
+    setBlocked(false);
+  } catch (err: any) {
+    setError("Error al desbloquear: " + err.message);
+  }
+}; 
   const openUserProfile = () => {
     window.location.href = `/profile/${post.user_id}`;
   };
 
   const isDark = theme === "dark";
-if (blocked) return (
-  <div className={`px-4 py-3 border-b text-sm ${isDark ? "bg-black border-gray-800 text-gray-600" : "bg-white border-gray-100 text-gray-400"}`}>
-    Has bloqueado a este usuario. Su contenido no se mostrará.
+   if (blocked) return (
+  <div className={`px-4 py-3 border-b flex items-center justify-between gap-3 text-sm ${isDark ? "bg-black border-gray-800" : "bg-white border-gray-100"}`}>
+    <span className={isDark ? "text-gray-600" : "text-gray-400"}>
+      Has bloqueado a este usuario.
+    </span>
+    <button
+      onClick={handleUnblock}
+      className={`px-3 py-1 rounded-full text-xs font-semibold border transition ${
+        isDark
+          ? "border-gray-700 text-gray-400 hover:border-gray-500 hover:text-gray-200"
+          : "border-gray-300 text-gray-500 hover:border-gray-400 hover:text-gray-700"
+      }`}
+    >
+      Desbloquear
+    </button>
   </div>
 );
 
