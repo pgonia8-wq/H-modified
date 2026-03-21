@@ -106,8 +106,7 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tipAmount, setTipAmount] = useState<number | "">(1);
   const [showRepostModal, setShowRepostModal] = useState(false);
-  const [quoteInput, setQuoteInput] = useState("");
-
+  
   const { isFollowing, toggleFollow } = useFollow(currentUserId, post.user_id);
   const [postProfile, setPostProfile] = useState<{ username: string; avatar_url: string } | null>(null);
 
@@ -513,14 +512,14 @@ const handleBlock = async () => {
 );
       
       ref={postRef}
-      className={`
+      className={
         relative px-4 py-4 mb-0
         border-b transition-colors
         ${isDark
           ? "bg-black border-gray-800 hover:bg-gray-950"
           : "bg-white border-gray-100 hover:bg-gray-50"
         }
-      `}
+      }
     >
       {/* Repost banner */}
       {post.reposted_post_id && (
