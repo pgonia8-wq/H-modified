@@ -571,6 +571,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showUserSearch, setShowUserSearch] = useState(false);
   const [typingTimeout, setTypingTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -580,6 +581,9 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  // Ref to always have the latest activeConv inside async callbacks
+  const activeConvRef = useRef<Conversation | null>(null);
+  useEffect(() => { activeConvRef.current = activeConv; }, [activeConv]);
 
   // ── Fetch conversations ──
   const fetchConversations = useCallback(async () => {
@@ -797,6 +801,7 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
     setAttachments([]);
     setPreviews([]);
     setShowEmojiPicker(false);
+    setSendError(null);
   };
 
   // ── Typing broadcast ──
@@ -834,22 +839,36 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
 
   // ── Send message ──
   const handleSend = async () => {
-    if (!activeConv) return;
-    if (!text.trim() && attachments.length === 0) return;
+    // Use ref so we always get the latest value even inside async closures
+    const conv = activeConvRef.current;
+    if (!conv) return;
+    const currentText = text.trim();
+    const currentAttachments = [...attachments];
+    if (!currentText && currentAttachments.length === 0) return;
+
     setSending(true);
+    setSendError(null);
     setShowEmojiPicker(false);
 
-    const room = roomId(currentUserId, activeConv.otherUserId);
+    // Optimistic clear so UX feels instant
+    setText("");
+    setAttachments([]);
+    setPreviews([]);
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
+
+    const room = roomId(currentUserId, conv.otherUserId);
 
     try {
       let attachmentUrls: string[] = [];
 
-      for (const file of attachments) {
+      for (const file of currentAttachments) {
         const key = `dm/${room}/${currentUserId}-${Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from("dm-attachments")
           .upload(key, file);
-        if (uploadError) throw uploadError;
+        if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
         const { data } = supabase.storage
           .from("dm-attachments")
@@ -861,26 +880,29 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
         .from("dm_messages")
         .insert({
           sender_id: currentUserId,
-          receiver_id: activeConv.otherUserId,
-          content: text.trim(),
+          receiver_id: conv.otherUserId,
+          content: currentText,
           attachments: attachmentUrls,
           read: false,
-          created_at: new Date().toISOString(),
         })
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) throw new Error(error.message);
 
-      setMessages((prev) => [...prev, inserted as DmMessage]);
-      setText("");
-      setAttachments([]);
-      setPreviews([]);
+      if (inserted) {
+        setMessages((prev) => [...prev, inserted as DmMessage]);
+      }
 
-      // Refresh conversation list to update last message
       fetchConversations();
-    } catch (err) {
-      console.error("Error sending DM:", err);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error("Error sending DM:", msg);
+      setSendError(msg);
+      // Restore text so user can retry
+      setText(currentText);
+      // Auto-clear error after 5s
+      setTimeout(() => setSendError(null), 5000);
     } finally {
       setSending(false);
     }
@@ -1140,6 +1162,27 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                       </button>
                     ))}
                   </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ── Send error banner ── */}
+            <AnimatePresence>
+              {sendError && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 4 }}
+                  className="mx-3 mb-1 px-3 py-2 rounded-xl bg-red-900/60 border border-red-500/40 text-xs text-red-300 flex items-center justify-between gap-2 flex-shrink-0"
+                >
+                  <span className="truncate">⚠ {sendError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setSendError(null)}
+                    className="flex-shrink-0 text-red-400 hover:text-red-200"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </motion.div>
               )}
             </AnimatePresence>
