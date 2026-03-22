@@ -806,14 +806,23 @@ function ChatInput({ onSend, onTyping, isGold, hasGoldAccess, disabled, replyTo,
           <Paperclip className="h-4 w-4" />
         </button>
 
-        <button onClick={handleMicClick} disabled={disabled}
-          data-testid="button-mic"
-          className={cx("flex-shrink-0 p-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-30",
-            !hasGoldAccess
-              ? "text-white/20 hover:text-yellow-400/50 hover:bg-yellow-500/8"
-              : isRecording ? "text-red-400 bg-red-500/15 hover:bg-red-500/25" : isGold ? "text-yellow-400/60 hover:bg-yellow-500/10" : "text-violet-400/60 hover:bg-violet-500/10")}>
-          {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-        </button>
+        {/* Mic: solo visible en Gold, en Classic se muestra bloqueado */}
+        {isGold ? (
+          <button onClick={handleMicClick} disabled={disabled}
+            data-testid="button-mic"
+            className={cx("flex-shrink-0 p-2.5 rounded-xl transition-all cursor-pointer disabled:opacity-30",
+              isRecording ? "text-red-400 bg-red-500/15 hover:bg-red-500/25" : "text-yellow-400/60 hover:bg-yellow-500/10")}>
+            {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+          </button>
+        ) : (
+          <button
+            disabled
+            data-testid="button-mic"
+            title="Audio solo disponible en Gold"
+            className="flex-shrink-0 p-2.5 rounded-xl opacity-25 cursor-not-allowed text-white/30">
+            <Mic className="h-4 w-4" />
+          </button>
+        )}
 
         <button onClick={() => setEphemeral(!ephemeral)} disabled={disabled}
           title={ephemeral ? "Mensaje efímero (24h)" : "Mensaje normal"}
@@ -942,7 +951,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [isGold,     setIsGold]     = useState(false);
   const [canUseGold, setCanUseGold] = useState(false);
 
-  // ── CAMBIO 4: useEffect nuevo para sincronizar isGold/canUseGold ────────────
   useEffect(() => {
     setIsGold(hasGoldAccess);
     setCanUseGold(hasGoldAccess);
@@ -1037,32 +1045,42 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     setShowSearch(false);
   }, []);
 
+  // ── FIX 1: Cargar mensajes al cambiar selectedRoomId ──────────────────────
   useEffect(() => {
-    if (!isOpen || !selectedRoomId) return;
-    let cancelled = false;
-    const load = async () => {
-      const { data, error } = await supabase
+    if (!selectedRoomId) return;
+
+    const fetchMessages = async () => {
+      const { data } = await supabase
         .from("global_chat_messages")
         .select("*, profiles:sender_id(username, avatar_url)")
         .eq("room_id", selectedRoomId)
         .order("created_at", { ascending: true })
-        .limit(60);
-      if (cancelled || error) return;
-      setMessages((prev) => ({ ...prev, [selectedRoomId]: (data ?? []).map((r) => rowToMessage(r as Record<string, unknown>)) }));
+        .limit(100);
+
+      if (data) {
+        setMessages(prev => ({ ...prev, [selectedRoomId]: data.map(r => rowToMessage(r as Record<string, unknown>)) }));
+      }
     };
-    load();
-    return () => { cancelled = true; };
-  }, [isOpen, selectedRoomId]);
+
+    fetchMessages();
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [selectedRoomId]);
 
   useEffect(() => {
     if (!isOpen || !selectedRoomId) return;
     if (realtimeRef.current) { supabase.removeChannel(realtimeRef.current); realtimeRef.current = null; }
 
+    // ── FIX 2: Realtime subscription filtrada por room_id actual ─────────────
     const channel = supabase
       .channel(`globalchat-${selectedRoomId}`, {
         config: { broadcast: { self: false }, presence: { key: currentUserId } },
       })
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "global_chat_messages", filter: `room_id=eq.${selectedRoomId}` },
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "global_chat_messages",
+        filter: `room_id=eq.${selectedRoomId}`
+      },
         (payload) => {
           const newMsg = rowToMessage(payload.new as Record<string, unknown>);
           setMessages((prev) => {
@@ -1087,7 +1105,12 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             return { ...prev, [selectedRoomId]: [...existing, newMsg] };
           });
         })
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "global_chat_messages", filter: `room_id=eq.${selectedRoomId}` },
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "global_chat_messages",
+        filter: `room_id=eq.${selectedRoomId}`
+      },
         (payload) => {
           const updated = rowToMessage(payload.new as Record<string, unknown>);
           setMessages((prev) => ({
@@ -1179,7 +1202,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     });
   }, []);
 
-  // ── CAMBIO 2 + 3: handleSwitchType ─────────────────────────────────────────
   const handleSwitchType = (type: RoomType) => {
     if (type === "gold" && !canUseGold)          { setShowGoldModal(true); return; }
     if (type === "classic" && !hasClassicAccess) { return; }
@@ -1208,7 +1230,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     finally { setGoldLoading(false); }
   };
 
-  // ── CAMBIO 5: handlePayForExtraRoom con validación de pago fallido ──────────
   const handlePayForExtraRoom = async (amount: number, isGoldPrice: boolean) => {
     if (!pendingRoomData) return;
     setExtraRoomPayLoading(true);
@@ -1231,7 +1252,6 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     void isGoldPrice;
   };
 
-  // ── CAMBIO 1: handleCreateRoom con .eq("type", data.type) ──────────────────
   const insertRoom = async (data: Omit<ChatRoom, "id">) => {
     const { data: inserted, error } = await supabase.from("chat_rooms")
       .insert({ name: data.name, type: data.type, is_private: data.isPrivate, description: data.description ?? null, created_by: currentUserId })
@@ -1401,8 +1421,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             data-testid="container-chat-room"
           >
             {/* ══ HEADER ══ */}
-            <div className={cx("flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 backdrop-blur-sm",
-              isGold ? "border-yellow-500/15 bg-yellow-900/15" : "border-violet-500/15 bg-indigo-950/40")}>
+            {/* FIX 3: Header con clases diferenciadas Classic vs Gold */}
+            <div className={cx(
+              "flex items-center gap-3 px-4 py-3 border-b flex-shrink-0 backdrop-blur-sm",
+              isGold
+                ? "bg-gradient-to-r from-yellow-600/20 to-amber-600/20 border-yellow-500/30"
+                : "bg-gradient-to-r from-violet-600/20 to-fuchsia-600/20 border-violet-500/30"
+            )}>
               <div className={cx("flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl",
                 isGold ? "bg-gradient-to-br from-yellow-400/20 to-amber-500/20 text-yellow-400"
                        : "bg-gradient-to-br from-indigo-500/20 to-violet-500/20 text-violet-400")}>
@@ -1577,6 +1602,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
             </div>
 
             {/* ══ INPUT ══ */}
+            {/* FIX 3b: Gold badge junto al input de Gold, mic deshabilitado en Classic */}
+            {isGold && (
+              <div className="flex items-center gap-1.5 px-4 pt-1 flex-shrink-0">
+                <Crown className="h-3 w-3 text-yellow-400" />
+                <span className="text-[10px] text-yellow-400/70 font-semibold tracking-wide">Gold Room</span>
+              </div>
+            )}
             <ChatInput
               onSend={handleSend} onTyping={handleTyping} isGold={isGold}
               hasGoldAccess={hasGoldAccess}
@@ -1605,5 +1637,3 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     </AnimatePresence>
   );
 }
-
-// ✅ CHAT 100% FUNCIONAL - Classic = premium (2 salas gratis) | Gold = premium+ (5 salas gratis + audio) - Salas y mensajes persistentes - Diferencias reales entre tiers
