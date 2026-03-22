@@ -281,26 +281,42 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   };
 
   const handleSendComplaint = async () => {
-    if (!complaintMessage.trim()) return;
-    setSendingComplaint(true);
-    try {
-      const { error } = await supabase.functions.invoke("send-complaint", {
-        body: {
+  if (!complaintMessage.trim()) return;
+  setSendingComplaint(true);
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+
+    const res = await fetch(
+      "https://vtjqfzpfehfofamhowjz.supabase.co/functions/v1/send-complaint",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${session?.access_token ?? import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "apikey": import.meta.env.VITE_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
           message: complaintMessage,
           userId: currentUserId,
           username: profile.username,
-        },
-      });
-      if (error) throw error;
-      setToast({ message: t("queja_enviada") || "Mensaje enviado correctamente", type: "success" });
-      setComplaintMessage("");
-      setShowComplaintModal(false);
-    } catch (err: any) {
-      setToast({ message: err.message || "Error al enviar mensaje", type: "error" });
-    } finally {
-      setSendingComplaint(false);
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || "Error al enviar");
     }
-  };
+
+    setToast({ message: t("queja_enviada") || "Mensaje enviado correctamente", type: "success" });
+    setComplaintMessage("");
+    setShowComplaintModal(false);
+  } catch (err: any) {
+    setToast({ message: err.message || "Error al enviar mensaje", type: "error" });
+  } finally {
+    setSendingComplaint(false);
+  }
+};
 
   const toggleProfileVisibility = () => {
     setProfile(prev => ({ ...prev, profile_visible: !prev.profile_visible }));
