@@ -1195,57 +1195,53 @@ const Inbox: React.FC<InboxProps> = ({ isOpen, onClose, currentUserId }) => {
                 </p>
               )}
               <div className="flex items-end gap-2">
-                {/* Hidden file inputs */}
+                {/* Attach file — label triggers input directly (works on mobile) */}
+                <label
+                  htmlFor="dm-file-input"
+                  className={`flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors cursor-pointer ${
+                    !activeConv ? "opacity-30 pointer-events-none" : ""
+                  }`}
+                  title="Attach file"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </label>
                 <input
+                  id="dm-file-input"
                   ref={fileInputRef}
                   type="file"
                   multiple
                   accept="image/*,video/*,.pdf,.doc,.docx,.txt"
                   className="hidden"
+                  disabled={!activeConv}
                   onChange={(e) => {
                     handleFiles(e.target.files);
                     e.target.value = "";
                   }}
                 />
+
+                {/* Attach image — label triggers input directly (works on mobile) */}
+                <label
+                  htmlFor="dm-image-input"
+                  className={`flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors cursor-pointer ${
+                    !activeConv ? "opacity-30 pointer-events-none" : ""
+                  }`}
+                  title="Attach image"
+                >
+                  <ImageIcon className="w-5 h-5" />
+                </label>
                 <input
+                  id="dm-image-input"
                   ref={imageInputRef}
                   type="file"
                   multiple
                   accept="image/*"
                   className="hidden"
+                  disabled={!activeConv}
                   onChange={(e) => {
                     handleFiles(e.target.files);
                     e.target.value = "";
                   }}
                 />
-
-                {/* Attach file */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!activeConv) return;
-                    fileInputRef.current?.click();
-                  }}
-                  disabled={!activeConv}
-                  className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Attach file"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                {/* Attach image */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!activeConv) return;
-                    imageInputRef.current?.click();
-                  }}
-                  disabled={!activeConv}
-                  className="flex-shrink-0 p-2.5 rounded-full bg-white/8 hover:bg-white/15 text-gray-400 hover:text-white transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                  title="Attach image"
-                >
-                  <ImageIcon className="w-5 h-5" />
-                </button>
 
                 {/* Emoji toggle */}
                 <button
