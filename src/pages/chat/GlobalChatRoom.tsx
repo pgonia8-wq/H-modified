@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { MiniKit, Tokens, tokenToDecimals } from "@worldcoin/minikit-js";
 import { supabase } from "../../supabaseClient";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CONSTANTES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -876,7 +877,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [showGoldModal,  setShowGoldModal]  = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [shareMsg,       setShareMsg]       = useState<ChatMessage | null>(null);
-  const [isSubscribed,   setIsSubscribed]   = useState(false);
+  const [isGoldSubscribed, setIsGoldSubscribed] = useState(false);
   const [goldLoading,    setGoldLoading]    = useState(false);
 
   // ── Estado nuevo 2026 ──
@@ -897,8 +898,8 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
 
   // ── Derivados ──
   const isGold      = roomType === "gold";
-  // ✅ Gold ESTRICTAMENTE solo para profile.tier === "premium+" (no isSubscribed)
-  const canUseGold  = userTier === "premium+";
+  // Gold = suscripción pagada (chat_gold) ó tier premium+ en profiles
+  const canUseGold  = isGoldSubscribed || userTier === "premium+";
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
   const filteredRooms = rooms.filter((r) => r.type === roomType);
 
@@ -932,7 +933,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     fetchProfile();
   }, [currentUserId, isOpen]);
 
-  // ── Verificar suscripción Gold ──
+  // ── Verificar suscripción Gold (solo marca el estado, NO fuerza el modo) ──
   useEffect(() => {
     if (!currentUserId || !isOpen) return;
     const check = async () => {
@@ -940,12 +941,9 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
         .from("subscriptions")
         .select("product")
         .eq("user_id", currentUserId)
-        .in("product", ["chat_classic", "chat_gold"])
+        .eq("product", "chat_gold")
         .maybeSingle();
-      if (data) {
-        setIsSubscribed(true);
-        if (data.product === "chat_gold") { setRoomType("gold"); switchRoom("gold-vip"); }
-      }
+      if (data) setIsGoldSubscribed(true);
     };
     check();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1097,7 +1095,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
       if (payRes?.finalPayload?.status === "success") {
         const { error: dbErr } = await supabase.from("subscriptions").upsert({ user_id: currentUserId, product: "chat_gold" });
         if (dbErr) { console.error("[GlobalChat] Error guardando suscripción:", dbErr.message); return; }
-        setIsSubscribed(true); setShowGoldModal(false); setRoomType("gold");
+        setIsGoldSubscribed(true); setShowGoldModal(false); setRoomType("gold");
         const first = rooms.find((r) => r.type === "gold");
         if (first) switchRoom(first.id);
       }
@@ -1278,25 +1276,38 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
                 <Search className="h-4 w-4" />
               </button>
 
-              {/* Toggle Classic/Gold — solo visible para premium+ */}
-              {userTier === "premium+" ? (
-                <div className="flex rounded-xl border border-white/10 overflow-hidden">
-                  {(["classic", "gold"] as RoomType[]).map((t) => (
-                    <button key={t} onClick={() => handleSwitchType(t)} data-testid={`button-switch-${t}`}
-                      className={cx("px-2.5 py-1 text-[10px] font-semibold transition-all cursor-pointer capitalize",
-                        roomType === t
-                          ? t === "gold" ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-white" : "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white"
-                          : "text-white/40 hover:text-white/60")}>
-                      {t}
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <button onClick={() => setShowGoldModal(true)} data-testid="button-upgrade-gold"
-                  className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-yellow-400 to-amber-500 px-2.5 py-1 text-[10px] font-bold text-white cursor-pointer shadow-lg shadow-yellow-500/30">
-                  <Crown className="h-3 w-3" /> Gold
+              {/* Selector Classic / Gold — siempre visible */}
+              <div className="flex rounded-xl border border-white/15 overflow-hidden shadow-sm">
+                <button
+                  onClick={() => handleSwitchType("classic")}
+                  data-testid="button-switch-classic"
+                  className={cx(
+                    "flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
+                    roomType === "classic"
+                      ? "bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white shadow-inner"
+                      : "text-white/45 hover:text-white/70 hover:bg-white/6"
+                  )}
+                >
+                  <MessageSquare className="h-3 w-3" /> Classic
                 </button>
-              )}
+                <div className="w-px bg-white/10 self-stretch" />
+                <button
+                  onClick={() => handleSwitchType("gold")}
+                  data-testid="button-switch-gold"
+                  className={cx(
+                    "flex items-center gap-1 px-2.5 py-1.5 text-[10px] font-bold transition-all cursor-pointer",
+                    roomType === "gold"
+                      ? "bg-gradient-to-r from-yellow-500 to-amber-500 text-white shadow-inner"
+                      : canUseGold
+                        ? "text-yellow-400/80 hover:text-yellow-300 hover:bg-yellow-500/8"
+                        : "text-yellow-500/50 hover:text-yellow-400/70 hover:bg-yellow-500/6"
+                  )}
+                >
+                  <Crown className="h-3 w-3" />
+                  Gold
+                  {!canUseGold && <span className="text-[8px] opacity-60">✦</span>}
+                </button>
+              </div>
 
               <button onClick={onClose} data-testid="button-close-chat"
                 className="flex-shrink-0 text-white/30 hover:text-white/60 cursor-pointer p-1 transition-colors">
