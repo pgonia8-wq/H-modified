@@ -1397,4 +1397,3 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     </AnimatePresence>
   );
 }
-export default GlobalChatRoom;
