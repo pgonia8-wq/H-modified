@@ -76,12 +76,20 @@ function initials(name: string): string { return name.split(" ").map((w) => w[0]
 function canEditMsg(createdAt: string): boolean { return Date.now() - new Date(createdAt).getTime() < 10 * 60 * 1000; }
 
 function rowToMessage(row: Record<string, unknown>): ChatMessage {
+  const profile = row.profiles as { username?: string; avatar_url?: string } | null | undefined;
+  const senderId = String(row.sender_id ?? row.user_id ?? "");
+  const resolvedUsername = profile?.username
+    ? String(profile.username)
+    : (row.username ? String(row.username) : (senderId ? `@${senderId.slice(0, 8)}` : "Usuario"));
+  const resolvedAvatar = profile?.avatar_url
+    ? String(profile.avatar_url)
+    : (row.avatar_url ? String(row.avatar_url) : undefined);
   return {
     id:              String(row.id ?? ""),
     roomId:          String(row.room_id ?? ""),
-    userId:          String(row.sender_id ?? row.user_id ?? ""),
-    username:        String(row.username ?? row.sender_id ?? "Usuario"),
-    avatarUrl:       row.avatar_url        ? String(row.avatar_url)        : undefined,
+    userId:          senderId,
+    username:        resolvedUsername,
+    avatarUrl:       resolvedAvatar,
     content:         row.content           ? String(row.content)           : undefined,
     fileUrl:         row.file_url          ? String(row.file_url)          : undefined,
     fileName:        row.file_name         ? String(row.file_name)         : undefined,
@@ -409,8 +417,8 @@ function MessageBubble({ message, isOwn, isGold, currentUserId, reactions, seenB
                 ? "bg-gradient-to-br from-yellow-400 via-amber-500 to-orange-500 text-white rounded-tr-sm shadow-lg shadow-yellow-500/35"
                 : "bg-gradient-to-br from-indigo-600 via-violet-600 to-fuchsia-600 text-white rounded-tr-sm shadow-lg shadow-violet-600/40"
               : isGold
-                ? "bg-amber-950/60 backdrop-blur-xl border border-yellow-500/15 text-white drop-shadow-sm rounded-tl-sm"
-                : "bg-white/8 backdrop-blur-xl border border-white/12 text-white drop-shadow-sm rounded-tl-sm"
+                ? "bg-amber-950/60 backdrop-blur-xl border border-yellow-500/15 text-zinc-50 drop-shadow-sm rounded-tl-sm"
+                : "bg-white/8 backdrop-blur-xl border border-white/12 text-zinc-50 drop-shadow-sm rounded-tl-sm"
           )}>
             {message.content && <p className="break-words whitespace-pre-wrap">{message.content}</p>}
 
@@ -877,11 +885,13 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const [showGoldModal,  setShowGoldModal]  = useState(false);
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [shareMsg,       setShareMsg]       = useState<ChatMessage | null>(null);
-  const [isGoldSubscribed, setIsGoldSubscribed] = useState(false);
-  const [goldLoading,    setGoldLoading]    = useState(false);
+  const [isClassicSubscribed, setIsClassicSubscribed] = useState(false);
+  const [isGoldSubscribed,   setIsGoldSubscribed]    = useState(false);
+  const [goldLoading,        setGoldLoading]          = useState(false);
+  const [myUsername,         setMyUsername]            = useState<string>("");
+  const [userTier,           setUserTier]              = useState<string>("");
 
   // ── Estado nuevo 2026 ──
-  const [userTier,    setUserTier]    = useState<string>("free");
   const [reactions,   setReactions]   = useState<Record<string, Record<string, string[]>>>({});
   const [pinnedIds,   setPinnedIds]   = useState<string[]>([]);
   const [replyTo,     setReplyTo]     = useState<ChatMessage | null>(null);
@@ -898,8 +908,8 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
 
   // ── Derivados ──
   const isGold      = roomType === "gold";
-  // Gold = suscripción pagada (chat_gold) ó tier premium+ en profiles
-  const canUseGold  = isGoldSubscribed || userTier === "premium+";
+  // Gold = suscripción estrictamente chat_gold en tabla subscriptions
+  const canUseGold  = isGoldSubscribed;
   const selectedRoom = rooms.find((r) => r.id === selectedRoomId);
   const filteredRooms = rooms.filter((r) => r.type === roomType);
 
@@ -914,9 +924,9 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
   const displayUsername = useCallback((userId: string): string => {
     for (const msgs of Object.values(messages)) {
       const found = msgs.find((m) => m.userId === userId);
-      if (found?.username && found.username !== userId) return found.username;
+      if (found?.username && found.username !== userId && !found.username.startsWith("@")) return found.username;
     }
-    return userId.slice(-6);
+    return `@${userId.slice(0, 8)}`;
   }, [messages]);
 
   // ── Fetch perfil (tier) para canUseGold real ──
@@ -961,7 +971,7 @@ export default function GlobalChatRoom({ isOpen, onClose, currentUserId }: Globa
     const load = async () => {
       const { data, error } = await supabase
         .from("global_chat_messages")
-        .select("*")
+        .select("*, profiles:sender_id(username, avatar_url)")
         .eq("room_id", selectedRoomId)
         .order("created_at", { ascending: true })
         .limit(60);
