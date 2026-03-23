@@ -42,7 +42,7 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 
     trackImpression();
   }, []);
-};
+
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
