@@ -87,7 +87,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const isOwnProfile = !!currentUserId;
   const [showDashboard, setShowDashboard] = useState(false);
-  const currentUserId = user?.id;
+
   const countries = Country.getAllCountries();
   const selectedCountryObj = countries.find(c => c.isoCode === profile.country);
   const states = profile.country ? State.getStatesOfCountry(profile.country) : [];
