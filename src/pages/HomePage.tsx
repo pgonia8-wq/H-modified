@@ -53,63 +53,6 @@ interface Notification {
   read: boolean;
 }
 
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "like",
-    user: "alejandro_m",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=alejandro",
-    message: "Le dio me gusta a tu publicación",
-    time: "hace 2 min",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "follow",
-    user: "sofia_dev",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=sofia",
-    message: "Empezó a seguirte",
-    time: "hace 5 min",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "comment",
-    user: "carlos_web3",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=carlos",
-    message: "Comentó en tu publicación",
-    time: "hace 18 min",
-    read: false,
-  },
-  {
-    id: "4",
-    type: "mention",
-    user: "laura_crypto",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=laura",
-    message: "Te mencionó en una publicación",
-    time: "hace 1 hora",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "repost",
-    user: "miguel_nft",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=miguel",
-    message: "Reposteó tu publicación",
-    time: "hace 2 horas",
-    read: true,
-  },
-  {
-    id: "6",
-    type: "verified",
-    user: "Sistema",
-    avatar: "https://api.dicebear.com/7.x/avataaars/svg?seed=system",
-    message: "Tu cuenta ha sido verificada",
-    time: "hace 1 día",
-    read: true,
-  },
-];
-
 const notifIcon = (type: Notification["type"]) => {
   switch (type) {
     case "like":
@@ -157,8 +100,9 @@ const HomePage: React.FC<HomePageProps> = ({
   const [newMessageAttachments, setNewMessageAttachments] = useState<File[]>([]);
   const [selectedChatUserId, setSelectedChatUserId] = useState<string | null>(null);
   const [isPosting, setIsPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
 
-  const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const unreadNotifCount = notifications.filter((n) => !n.read).length;
 
   const { theme, toggleTheme, username } = useContext(ThemeContext);
@@ -180,10 +124,13 @@ const HomePage: React.FC<HomePageProps> = ({
       if (!hasMore && !reset) return;
       try {
         setLoading(true);
+        const from = reset ? 0 : page * PAGE_SIZE;
+        const to = from + PAGE_SIZE - 1;
         const { data, error } = await supabase
           .from("posts")
           .select("*")
-          .order("timestamp", { ascending: false });
+          .order("timestamp", { ascending: false })
+          .range(from, to);
 
         const newPosts = data || [];
         setPosts((prev) => (reset ? newPosts : [...prev, ...newPosts]));
@@ -197,7 +144,7 @@ const HomePage: React.FC<HomePageProps> = ({
         setLoading(false);
       }
     },
-    [hasMore],
+    [hasMore, page],
   );
 
   const fetchOrUpsertProfile = useCallback(async () => {
@@ -226,11 +173,27 @@ const HomePage: React.FC<HomePageProps> = ({
     }
   }, [userId, username, wallet, verified]);
 
+  const fetchNotifications = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const { data } = await supabase
+        .from("notifications")
+        .select("id, type, user, avatar, message, time, read")
+        .eq("receiver_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (data) setNotifications(data as Notification[]);
+    } catch (err) {
+      console.error("[HOME] Error fetching notifications:", err);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (!userId) return;
     fetchOrUpsertProfile();
     fetchPosts(true);
-  }, [userId, fetchOrUpsertProfile, fetchPosts]);
+    fetchNotifications();
+  }, [userId, fetchOrUpsertProfile]);
 
   useEffect(() => {
     const channel = supabase
@@ -300,12 +263,13 @@ const HomePage: React.FC<HomePageProps> = ({
   const handleCreatePost = async () => {
     if (isPosting) return;
     if (!newPostContent.trim()) {
-      alert(t("write_before_posting"));
+      setPostError(t("write_before_posting"));
       return;
     }
     if (!userId) return;
 
     setIsPosting(true);
+    setPostError(null);
     let imageUrl = null;
 
     try {
@@ -344,7 +308,7 @@ const HomePage: React.FC<HomePageProps> = ({
       fetchPosts(true);
     } catch (err: any) {
       console.error("Error creando post", err);
-      alert(err.message);
+      setPostError(err.message);
     } finally {
       setIsPosting(false);
     }
@@ -370,7 +334,7 @@ const HomePage: React.FC<HomePageProps> = ({
       }
 
       if (!selectedChatUserId) {
-        alert("Selecciona un chat antes de enviar mensaje");
+        setPostError("Selecciona un chat antes de enviar mensaje");
         return;
       }
 
@@ -389,7 +353,7 @@ const HomePage: React.FC<HomePageProps> = ({
       loadUnread();
     } catch (err: any) {
       console.error("Error enviando mensaje", err);
-      alert(err.message);
+      setPostError(err.message);
     }
   };
 
@@ -729,6 +693,26 @@ const HomePage: React.FC<HomePageProps> = ({
                         <X size={12} className="text-white" />
                       </motion.button>
                     </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Post error banner */}
+              <AnimatePresence>
+                {postError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 4 }}
+                    className="mx-6 mt-3 px-3 py-2 rounded-xl bg-red-900/60 border border-red-500/40 text-xs text-red-300 flex items-center justify-between gap-2"
+                  >
+                    <span className="truncate">⚠ {postError}</span>
+                    <button
+                      onClick={() => setPostError(null)}
+                      className="flex-shrink-0 text-red-400 hover:text-red-200"
+                    >
+                      <X size={13} />
+                    </button>
                   </motion.div>
                 )}
               </AnimatePresence>
