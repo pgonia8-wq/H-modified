@@ -425,7 +425,10 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
       await supabase
         .from("posts")
         .update({ is_ad: true })
-        .eq("id", post.id);
+        is_ad: true,
+      boosted_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        })
+          .eq("id", post.id);
     } else {
       setError(t("pago_cancelado"));
     }
