@@ -422,15 +422,15 @@ const [showOptionsMenu, setShowOptionsMenu] = useState(false);
     });
 
     if (payRes?.finalPayload?.status === "success") {
-      await supabase
-        .from("posts")
-        .update({ is_ad: true })
-        is_ad: true,
-      boosted_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-        })
-          .eq("id", post.id);
-    } else {
-      setError(t("pago_cancelado"));
+  await supabase
+    .from("posts")
+    .update({
+      is_ad: true,
+      boosted_until: new Date(Date.now() + 86400000).toISOString()
+    })
+    .eq("id", post.id);
+} else {
+  setError(t("pago_cancelado"));
     }
 
   } catch (err: any) {
