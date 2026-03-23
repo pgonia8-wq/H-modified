@@ -600,6 +600,7 @@ const handleBlock = async () => {
 return (
   <div
     ref={postRef}
+    onClick={trackClick}
     className={`
       relative px-4 py-4 mb-0
       border-b transition-colors
