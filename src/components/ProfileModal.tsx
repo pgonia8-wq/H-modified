@@ -361,9 +361,7 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
     "basic": "bg-blue-600 text-white",
     "free": "bg-gray-600 text-white",
   };
- if (showDashboard) {
-  return <Dashboard currentUserId={currentUserId} />;
- }
+ 
   return (
     <>
       {/* Overlay */}
@@ -747,21 +745,29 @@ const ProfileModal: React.FC<ProfileModalProps> = ({
       )}
 
       {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
-          <div
-            className={`px-5 py-3 rounded-2xl text-sm font-medium shadow-xl ${
-              toast.type === "success"
-                ? "bg-green-800 text-green-200"
-                : "bg-red-900 text-red-200"
-            }`}
-          >
-            {toast.message}
-          </div>
+    {toast && (
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4">
+        <div className="px-5 py-3 rounded-2xl text-sm font-medium shadow-xl">
+          {toast.message}
         </div>
-      )}
-    </>
-  );
-};
+      </div>
+    )}
+
+    {/* 🔥 DASHBOARD (AQUÍ) */}
+    {showDashboard && (
+      <div
+        className="fixed inset-0 z-[9999] bg-black"
+        onClick={() => setShowDashboard(false)}
+      >
+        <div
+          className="w-full h-full"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Dashboard currentUserId={currentUserId} />
+        </div>
+      </div>
+    )}
+  </>
+);
 
 export default ProfileModal;
