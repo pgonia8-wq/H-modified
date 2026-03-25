@@ -51,19 +51,14 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 useEffect(() => {
   if (!post?.id || !post.is_ad || !userData || hasTrackedImpression.current) return;
 
-  const run = async () => {
-    await trackImpression({
-      postId: post.id,
-      campaignId: post.campaign_id,
-      userData,
-    });
+  hasTrackedImpression.current = true;
 
-    hasTrackedImpression.current = true;
-  };
-
-  run();
+  trackImpression({
+    postId: post.id,
+    campaignId: post.campaign_id,
+    userData,
+  });
 }, [post?.id, userData]);
-  
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
