@@ -2,6 +2,7 @@ import { memo, useState } from "react";
 import { motion } from "framer-motion";
 import { Settings, Info, ChevronDown } from "lucide-react";
 import { SectionBlock } from "../primitives/SectionBlock";
+import { useMonetizationSettings, type MonetizationSettings as SettingsData } from "../../hooks/useMonetizationSettings";
 
 const AD_CATEGORIES = [
   "Tecnología",
@@ -13,6 +14,12 @@ const AD_CATEGORIES = [
   "Salud & Bienestar",
   "Sin preferencia",
 ];
+
+interface MonetizationSettingsProps {
+  userId: string | null | undefined;
+  settings?: SettingsData;
+  onUpdate?: (patch: Partial<SettingsData>) => void;
+}
 
 interface ToggleRowProps {
   label: string;
@@ -32,9 +39,7 @@ const ToggleRow = memo(function ToggleRow({ label, description, value, onChange 
         onClick={() => onChange(!value)}
         className="relative shrink-0 w-11 h-6 rounded-full transition-all duration-300 active:scale-95"
         style={{
-          background: value
-            ? "linear-gradient(135deg, #059669, #34d399)"
-            : "rgba(255,255,255,0.08)",
+          background: value ? "linear-gradient(135deg, #059669, #34d399)" : "rgba(255,255,255,0.08)",
           boxShadow: value ? "0 0 12px rgba(52,211,153,0.3)" : "none",
           border: "1px solid rgba(255,255,255,0.06)",
         }}
@@ -49,10 +54,11 @@ const ToggleRow = memo(function ToggleRow({ label, description, value, onChange 
   );
 });
 
-export const MonetizationSettings = memo(function MonetizationSettings() {
-  const [adsEnabled, setAdsEnabled] = useState(true);
-  const [sponsorships, setSponsorships] = useState(false);
-  const [adCategory, setAdCategory] = useState("Sin preferencia");
+export const MonetizationSettings = memo(function MonetizationSettings({ userId, settings: extSettings, onUpdate: extUpdate }: MonetizationSettingsProps) {
+  const internal = useMonetizationSettings(extSettings ? null : userId);
+  const settings = extSettings ?? internal.settings;
+  const update = extUpdate ?? internal.updateSettings;
+
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
 
   return (
@@ -61,14 +67,14 @@ export const MonetizationSettings = memo(function MonetizationSettings() {
         <ToggleRow
           label="Anuncios en posts"
           description="Activa para mostrar anuncios en tu contenido y ganar WLD por impresiones y clics."
-          value={adsEnabled}
-          onChange={setAdsEnabled}
+          value={settings.ads_enabled}
+          onChange={(v) => update({ ads_enabled: v })}
         />
         <ToggleRow
           label="Permitir sponsorships"
           description="Recibe propuestas directas de marcas para colaboraciones patrocinadas."
-          value={sponsorships}
-          onChange={setSponsorships}
+          value={settings.sponsorships_enabled}
+          onChange={(v) => update({ sponsorships_enabled: v })}
         />
       </div>
 
@@ -80,12 +86,9 @@ export const MonetizationSettings = memo(function MonetizationSettings() {
           <button
             onClick={() => setShowCategoryDropdown((v) => !v)}
             className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm text-white/70 transition-all"
-            style={{
-              background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
+            style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
           >
-            <span>{adCategory}</span>
+            <span>{settings.ad_category}</span>
             <motion.div animate={{ rotate: showCategoryDropdown ? 180 : 0 }} transition={{ duration: 0.2 }}>
               <ChevronDown size={14} className="text-white/30" />
             </motion.div>
@@ -106,12 +109,12 @@ export const MonetizationSettings = memo(function MonetizationSettings() {
               {AD_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
-                  onClick={() => { setAdCategory(cat); setShowCategoryDropdown(false); }}
+                  onClick={() => { update({ ad_category: cat }); setShowCategoryDropdown(false); }}
                   className="w-full text-left px-4 py-3 text-sm transition-all border-b last:border-0"
                   style={{
-                    color: adCategory === cat ? "#a78bfa" : "rgba(255,255,255,0.55)",
+                    color: settings.ad_category === cat ? "#a78bfa" : "rgba(255,255,255,0.55)",
                     borderColor: "rgba(255,255,255,0.04)",
-                    background: adCategory === cat ? "rgba(124,58,237,0.1)" : "transparent",
+                    background: settings.ad_category === cat ? "rgba(124,58,237,0.1)" : "transparent",
                   }}
                 >
                   {cat}
@@ -124,17 +127,14 @@ export const MonetizationSettings = memo(function MonetizationSettings() {
 
       <div
         className="flex items-start gap-3 p-4 rounded-2xl"
-        style={{
-          background: "rgba(96,165,250,0.06)",
-          border: "1px solid rgba(96,165,250,0.12)",
-        }}
+        style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.12)" }}
       >
         <Info size={14} className="text-blue-400 shrink-0 mt-0.5" />
         <div>
           <p className="text-xs font-semibold text-blue-300/80 mb-1">¿Cómo funciona la monetización?</p>
           <p className="text-[11px] text-white/35 leading-relaxed">
             Cuando un usuario ve o hace clic en un anuncio en tu post, recibes WLD directamente en tu wallet.
-            El 70% es tuyo, el 25% se reinvierte para impulsar tu contenido y el 5% va al pool comunitario.
+            El 70% es tuyo, el 25% se reinvierte y el 5% va al pool comunitario.
           </p>
         </div>
       </div>
