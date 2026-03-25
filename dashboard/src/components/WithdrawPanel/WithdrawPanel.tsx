@@ -219,7 +219,7 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
 
   const handleOpen = () => { if (hasBalance) setShowModal(true); };
   const handleClose = () => { setShowModal(false); onClose?.(); };
-  const isOpen = showModal || !!open;
+  const isOpen = showModal;
 
   const handleSubmit = async (amount: number, wallet: string, token: "WLD" | "USDC") => {
     await createWithdrawal({ amount, wallet, token });
