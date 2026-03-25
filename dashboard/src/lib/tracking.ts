@@ -35,17 +35,22 @@ export async function trackImpression({
     impressionCache.add(postId);
 
     await supabase.from("ad_metrics").insert({
-      post_id: postId,
-      campaign_id: campaignId,
-      type: "impression",
-      value: 0.001,
+    await supabase.from("ad_metrics").insert({
+  post_id: postId,
+  campaign_id: campaignId,
+  type: "impression",
+  value: 0.001,
 
-      country: userData?.country || navigator.language || "unknown",
-      language: userData?.language || navigator.language || "unknown",
-      interests: userData?.interests || null,
+  // 💰 reparto (igual que en clicks, pero fijo)
+  creator_earning: 0.001 * 0.7,
+  platform_earning: 0.001 * 0.3,
 
-      created_at: new Date().toISOString(),
-    });
+  country: userData?.country || navigator.language || "unknown",
+  language: userData?.language || navigator.language || "unknown",
+  interests: userData?.interests || null,
+
+  created_at: new Date().toISOString(),
+});
   } catch (e) {
     console.error("❌ impression error", e);
   }
