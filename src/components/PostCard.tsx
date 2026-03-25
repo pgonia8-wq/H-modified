@@ -75,7 +75,6 @@ useEffect(() => {
   const trackClick = async () => {
   console.log("CLICK TRACKING 🚀");
 
-  // 🔒 ANTI MULTI-CLICK
   if (hasClicked.current) return;
   hasClicked.current = true;
 
@@ -91,11 +90,10 @@ useEffect(() => {
 
   if (existing) {
     console.log("CLICK YA EXISTE ❌");
-  };
     return;
   }
 
-  
+  // 🔥 TODO ESTO VA DENTRO
   const country = userData?.country || "DEFAULT";
   const cpc = CPC_BY_COUNTRY[country] || CPC_BY_COUNTRY.DEFAULT;
 
@@ -111,12 +109,6 @@ useEffect(() => {
   });
 
   console.log("CLICK GUARDADO ✅");
-};
-  if (error) {
-    console.error("ERROR CLICK ❌", error);
-  } else {
-    console.log("CLICK GUARDADO ✅", cpc);
-  }
 };
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
