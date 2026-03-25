@@ -50,10 +50,8 @@ const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
 useEffect(() => {
   if (!post?.id || !post.is_ad || !userData || hasTrackedImpression.current) return;
 
-  hasTrackedImpression.current = true;
-
   const trackImpression = async () => {
-    await supabase.from("ad_metrics").insert({
+    const { error } = await supabase.from("ad_metrics").insert({
       post_id: post.id,
       type: "impression",
       country: userData.country || null,
@@ -62,6 +60,12 @@ useEffect(() => {
       value: 0.001,
       created_at: new Date().toISOString(),
     });
+
+    if (!error) {
+      hasTrackedImpression.current = true;
+    } else {
+      console.error("ERROR IMPRESSION ❌", error);
+    }
   };
 
   trackImpression();
