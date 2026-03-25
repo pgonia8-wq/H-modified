@@ -80,40 +80,47 @@ useEffect(() => {
 
   if (!post?.id || !post.is_ad || !currentUserId) return;
 
-  const { data: existing } = await supabase
-    .from("ad_metrics")
-    .select("id")
-    .eq("post_id", post.id)
-    .eq("type", "click")
-    .eq("user_id", currentUserId)
-    .maybeSingle();
-
-  if (existing) {
-    console.log("CLICK YA EXISTE ❌");
+  // 🔥 SOLO campañas pagan
+  if (!post.campaign_id) {
+    console.log("NO CAMPAIGN ❌");
     return;
   }
 
-  // 🔥 TODO ESTO VA DENTRO
-  const country = userData?.country || "DEFAULT";
+  // 🔎 traer campaña real
+  const { data: campaign } = await supabase
+    .from("campaigns")
+    .select("cpc")
+    .eq("id", post.campaign_id)
+    .single();
+
+  if (!campaign) {
+    console.log("NO CAMPAIGN DATA ❌");
+    return;
+  }
+
   const cpc = campaign.cpc;
 
-// 💰 reparto
-const creatorShare = cpc * 0.7;
-const platformShare = cpc * 0.3;
+  // 💰 reparto
+  const creatorShare = cpc * 0.7;
+  const platformShare = cpc * 0.3;
 
-await supabase.from("ad_metrics").insert({
-  post_id: post.id,
-  campaign_id: campaign.id,
-  type: "click",
-  user_id: currentUserId,
-  value: cpc,
-  creator_earning: creatorShare,
-  platform_earning: platformShare,
-  created_at: new Date().toISOString(),
-});
+  await supabase.from("ad_metrics").insert({
+    post_id: post.id,
+    campaign_id: post.campaign_id,
+    type: "click",
+    user_id: currentUserId,
+    country: userData?.country || null,
+    language: userData?.language || null,
+    interests: userData?.interests || null,
+    value: cpc,
+    creator_earning: creatorShare,
+    platform_earning: platformShare,
+    created_at: new Date().toISOString(),
+  });
 
   console.log("CLICK GUARDADO ✅");
 };
+  
   
   const { theme, username: globalUsername } = useContext(ThemeContext);
   const { t } = useLanguage();
