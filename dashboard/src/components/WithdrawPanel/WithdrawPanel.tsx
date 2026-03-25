@@ -328,15 +328,16 @@ export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings
         </div>
       </SectionBlock>
 
-      <AnimatePresence>
-        {isOpen && (
-          <WithdrawModal
-            balance={totalEarnings}
-            onClose={handleClose}
-            onSubmit={handleSubmit}
-          />
-        )}
-      </AnimatePresence>
+<AnimatePresence mode="wait">
+  {isOpen && (
+    <WithdrawModal
+      key="withdraw-modal"
+      balance={totalEarnings}
+      onClose={handleClose}
+      onSubmit={handleSubmit}
+    />
+  )}
+</AnimatePresence>
     </>
   );
 });
