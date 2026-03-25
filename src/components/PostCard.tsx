@@ -45,6 +45,7 @@ const CPC_BY_COUNTRY: Record<string, number> = {
 const PostCard: React.FC<PostCardProps> = ({ post, currentUserId }) => {
   const [userData, setUserData] = useState<any>(null);
   
+  const hasClicked = useRef(false);
   const hasTrackedImpression = useRef(false);
 
 useEffect(() => {
@@ -74,6 +75,10 @@ useEffect(() => {
   const trackClick = async () => {
   console.log("CLICK TRACKING 🚀");
 
+  // 🔒 ANTI MULTI-CLICK
+  if (hasClicked.current) return;
+  hasClicked.current = true;
+
   if (!post?.id || !post.is_ad || !currentUserId) return;
 
   const { data: existing } = await supabase
@@ -89,10 +94,11 @@ useEffect(() => {
     return;
   }
 
+  
   const country = userData?.country || "DEFAULT";
   const cpc = CPC_BY_COUNTRY[country] || CPC_BY_COUNTRY.DEFAULT;
 
-  const { error } = await supabase.from("ad_metrics").insert({
+  await supabase.from("ad_metrics").insert({
     post_id: post.id,
     type: "click",
     user_id: currentUserId,
@@ -103,6 +109,8 @@ useEffect(() => {
     created_at: new Date().toISOString(),
   });
 
+  console.log("CLICK GUARDADO ✅");
+};
   if (error) {
     console.error("ERROR CLICK ❌", error);
   } else {
@@ -673,7 +681,6 @@ const handleBlock = async () => {
 return (
   <div
     ref={postRef}
-    onClick={trackClick}
     className={`
       relative px-4 py-4 mb-0
       border-b transition-colors
@@ -822,7 +829,12 @@ return (
   <img
     src={post.image_url}
     alt="post"
-    className="mt-3 rounded-xl w-full object-cover max-h-80 border border-gray-800"
+    onClick={(e) => {
+      if (!post.is_ad) return; // 🔒 solo ads
+      e.stopPropagation();
+      trackClick();
+    }}
+    className="mt-3 rounded-xl w-full object-cover max-h-80 border border-gray-800 cursor-pointer"
   />
 )}
 
