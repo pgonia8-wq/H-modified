@@ -1,22 +1,34 @@
 import { memo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Wallet, ArrowDownToLine, Clock, CheckCircle, X } from "lucide-react";
+import { Wallet, ArrowDownToLine, Clock, CheckCircle, X, AlertCircle } from "lucide-react";
 import { SectionBlock } from "../primitives/SectionBlock";
 import { EmptyStatePremium } from "../primitives/EmptyStatePremium";
-import { GlassCard } from "../primitives/GlassCard";
+import { useWithdrawals, type Withdrawal } from "../../hooks/useWithdrawals";
+
+const MIN_WITHDRAW = 0.1;
+const STATUS_LABELS: Record<Withdrawal["status"], { label: string; color: string }> = {
+  pending: { label: "Pendiente", color: "#f59e0b" },
+  processing: { label: "Procesando", color: "#60a5fa" },
+  completed: { label: "Completado", color: "#34d399" },
+  failed: { label: "Fallido", color: "#f87171" },
+};
 
 interface WithdrawPanelProps {
+  userId: string | null | undefined;
   totalEarnings: number;
+  open?: boolean;
+  onClose?: () => void;
 }
 
-type WithdrawStep = "idle" | "confirm" | "processing" | "done";
+type WithdrawStep = "idle" | "processing" | "done";
 
 interface WithdrawModalProps {
   balance: number;
   onClose: () => void;
+  onSubmit: (amount: number, wallet: string, token: "WLD" | "USDC") => Promise<void>;
 }
 
-const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: WithdrawModalProps) {
+const WithdrawModal = memo(function WithdrawModal({ balance, onClose, onSubmit }: WithdrawModalProps) {
   const [amount, setAmount] = useState("");
   const [wallet, setWallet] = useState("");
   const [method, setMethod] = useState<"WLD" | "USDC">("WLD");
@@ -26,11 +38,13 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
   const creatorShare = numAmount * 0.7;
   const reinvestShare = numAmount * 0.25;
   const poolShare = numAmount * 0.05;
-  const isValid = numAmount > 0 && numAmount <= balance && wallet.trim().length > 0;
+  const isValid = numAmount >= MIN_WITHDRAW && numAmount <= balance && wallet.trim().length > 10;
 
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
+    if (!isValid) return;
     setStep("processing");
-    setTimeout(() => setStep("done"), 2000);
+    await onSubmit(numAmount, wallet.trim(), method);
+    setStep("done");
   };
 
   return (
@@ -69,9 +83,7 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
             </motion.div>
             <h3 className="text-lg font-bold text-white mb-2">Retiro Enviado</h3>
             <p className="text-sm text-white/40 max-w-xs leading-relaxed mb-2">
-              Tu solicitud de retiro de{" "}
-              <span className="text-emerald-400 font-bold">{numAmount.toFixed(4)} {method}</span>{" "}
-              está siendo procesada.
+              Tu solicitud de <span className="text-emerald-400 font-bold">{numAmount.toFixed(4)} {method}</span> está en proceso.
             </p>
             <p className="text-xs text-white/25 mb-8">Tiempo estimado: 24–48 horas</p>
             <button
@@ -98,10 +110,7 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
                 <h3 className="text-base font-bold text-white">Retirar Fondos</h3>
                 <p className="text-xs text-white/30 mt-0.5">Saldo disponible: {balance.toFixed(4)} WLD</p>
               </div>
-              <button
-                onClick={onClose}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-white/40 hover:text-white hover:bg-white/8 transition-all"
-              >
+              <button onClick={onClose} className="w-8 h-8 rounded-xl flex items-center justify-center text-white/40 hover:text-white transition-all">
                 <X size={16} />
               </button>
             </div>
@@ -125,9 +134,12 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
               </div>
 
               <div>
-                <label className="text-[10px] text-white/40 uppercase tracking-widest font-semibold mb-1.5 block">
-                  Cantidad a retirar
-                </label>
+                <div className="flex justify-between mb-1.5">
+                  <label className="text-[10px] text-white/40 uppercase tracking-widest font-semibold">Cantidad</label>
+                  <button onClick={() => setAmount(balance.toFixed(4))} className="text-[10px] text-violet-400 font-semibold">
+                    Máximo
+                  </button>
+                </div>
                 <input
                   type="number"
                   value={amount}
@@ -135,11 +147,14 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
                   placeholder="0.0000"
                   max={balance}
                   className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 outline-none"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
                 />
+                {numAmount > 0 && numAmount < MIN_WITHDRAW && (
+                  <div className="flex items-center gap-1.5 mt-1.5">
+                    <AlertCircle size={11} className="text-amber-400" />
+                    <p className="text-[10px] text-amber-400">Mínimo: {MIN_WITHDRAW} WLD</p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -152,14 +167,11 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
                   onChange={(e) => setWallet(e.target.value)}
                   placeholder="0x..."
                   className="w-full px-4 py-3 rounded-xl text-sm text-white placeholder-white/20 outline-none font-mono"
-                  style={{
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
-                  }}
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
                 />
               </div>
 
-              {numAmount > 0 && (
+              {numAmount >= MIN_WITHDRAW && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
@@ -170,13 +182,11 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
                   {[
                     { label: "70% Tú recibes", value: creatorShare, color: "#34d399" },
                     { label: "25% Reinversión", value: reinvestShare, color: "#a78bfa" },
-                    { label: "5% Pool", value: poolShare, color: "#60a5fa" },
+                    { label: "5% Pool comunitario", value: poolShare, color: "#60a5fa" },
                   ].map(({ label, value, color }) => (
                     <div key={label} className="flex justify-between items-center">
                       <span className="text-xs text-white/40">{label}</span>
-                      <span className="text-xs font-bold" style={{ color }}>
-                        {value.toFixed(4)} {method}
-                      </span>
+                      <span className="text-xs font-bold" style={{ color }}>{value.toFixed(4)} {method}</span>
                     </div>
                   ))}
                 </motion.div>
@@ -201,9 +211,19 @@ const WithdrawModal = memo(function WithdrawModal({ balance, onClose }: Withdraw
   );
 });
 
-export const WithdrawPanel = memo(function WithdrawPanel({ totalEarnings }: WithdrawPanelProps) {
+export const WithdrawPanel = memo(function WithdrawPanel({ userId, totalEarnings, open, onClose }: WithdrawPanelProps) {
   const [showModal, setShowModal] = useState(false);
-  const hasBalance = totalEarnings > 0;
+  const { withdrawals, loading, createWithdrawal } = useWithdrawals(userId);
+  const hasBalance = totalEarnings >= MIN_WITHDRAW;
+  const missing = Math.max(0, MIN_WITHDRAW - totalEarnings);
+
+  const handleOpen = () => { if (hasBalance) setShowModal(true); };
+  const handleClose = () => { setShowModal(false); onClose?.(); };
+  const isOpen = showModal || !!open;
+
+  const handleSubmit = async (amount: number, wallet: string, token: "WLD" | "USDC") => {
+    await createWithdrawal({ amount, wallet, token });
+  };
 
   return (
     <>
@@ -232,11 +252,23 @@ export const WithdrawPanel = memo(function WithdrawPanel({ totalEarnings }: With
           <p className="text-[10px] text-white/25 mt-2">≈ ${(totalEarnings * 2.4).toFixed(2)} USD</p>
         </div>
 
+        {!hasBalance && missing > 0 && (
+          <div
+            className="flex items-center gap-2.5 px-4 py-3 rounded-xl mb-3"
+            style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.18)" }}
+          >
+            <AlertCircle size={14} className="text-amber-400 shrink-0" />
+            <p className="text-[11px] text-amber-300/70 leading-snug">
+              Necesitas {missing.toFixed(4)} WLD más para poder retirar (mínimo {MIN_WITHDRAW} WLD)
+            </p>
+          </div>
+        )}
+
         <motion.button
           whileTap={{ scale: 0.97 }}
-          onClick={() => hasBalance && setShowModal(true)}
+          onClick={handleOpen}
           disabled={!hasBalance}
-          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold text-white transition-all disabled:opacity-30 disabled:cursor-not-allowed"
+          className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl text-sm font-bold text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           style={{
             background: hasBalance ? "linear-gradient(135deg, #7c3aed, #059669)" : "rgba(255,255,255,0.06)",
             boxShadow: hasBalance ? "0 4px 20px rgba(109,40,217,0.35)" : "none",
@@ -244,7 +276,7 @@ export const WithdrawPanel = memo(function WithdrawPanel({ totalEarnings }: With
           }}
         >
           <ArrowDownToLine size={15} />
-          {hasBalance ? "Retirar Fondos" : "Sin saldo disponible"}
+          {hasBalance ? "Retirar Fondos" : `Faltan ${missing.toFixed(4)} WLD`}
         </motion.button>
 
         <div className="mt-5">
@@ -252,19 +284,57 @@ export const WithdrawPanel = memo(function WithdrawPanel({ totalEarnings }: With
             <Clock size={11} className="text-white/25" />
             <p className="text-[10px] text-white/25 uppercase tracking-widest font-semibold">Historial de retiros</p>
           </div>
-          <EmptyStatePremium
-            icon={ArrowDownToLine}
-            iconColor="text-emerald-400"
-            title="Sin retiros aún"
-            description="Cuando acumules ganancias podrás retirar directamente a tu wallet."
-            compact
-          />
+
+          {loading && (
+            <div className="space-y-2">
+              {[1, 2].map((i) => (
+                <div key={i} className="h-12 rounded-xl animate-pulse" style={{ background: "rgba(255,255,255,0.04)" }} />
+              ))}
+            </div>
+          )}
+
+          {!loading && withdrawals.length === 0 && (
+            <EmptyStatePremium
+              icon={ArrowDownToLine}
+              iconColor="text-emerald-400"
+              title="Sin retiros aún"
+              description="Cuando acumules ganancias podrás retirar directamente a tu wallet."
+              compact
+            />
+          )}
+
+          {!loading && withdrawals.length > 0 && (
+            <div className="space-y-2">
+              {withdrawals.map((w) => {
+                const st = STATUS_LABELS[w.status] ?? { label: w.status, color: "rgba(255,255,255,0.4)" };
+                return (
+                  <div
+                    key={w.id}
+                    className="flex items-center justify-between px-4 py-3 rounded-xl"
+                    style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}
+                  >
+                    <div>
+                      <p className="text-xs font-semibold text-white/80">{w.amount.toFixed(4)} {w.token}</p>
+                      <p className="text-[10px] text-white/25 font-mono mt-0.5">{w.wallet.slice(0, 10)}…</p>
+                    </div>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-lg" style={{ color: st.color, background: `${st.color}18` }}>
+                      {st.label}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </SectionBlock>
 
       <AnimatePresence>
-        {showModal && (
-          <WithdrawModal balance={totalEarnings} onClose={() => setShowModal(false)} />
+        {isOpen && (
+          <WithdrawModal
+            balance={totalEarnings}
+            onClose={handleClose}
+            onSubmit={handleSubmit}
+          />
         )}
       </AnimatePresence>
     </>
